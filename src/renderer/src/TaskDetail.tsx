@@ -1,27 +1,12 @@
-import { useState } from 'react';
 import type { AgentEvent, Task } from '../../shared/types';
 import { ConsultView } from './ConsultView';
-import { TaskProgress } from './ProgressView';
+import { EventRow, TaskProgress } from './ProgressView';
 import { elapsedText, errorText } from './format';
 import { AGENT_NAME, STATUS_LABEL, agentClass, usageText } from './TaskList';
 
-function EventRow({ e }: { e: AgentEvent }) {
-  const [open, setOpen] = useState(false);
-  if (e.kind === 'text') return <div className="log-row log-text">{e.text}</div>;
-  if (e.kind === 'tool')
-    return (
-      <div className="log-row log-tool" onClick={() => setOpen(!open)} title="눌러서 전체 보기">
-        <b>{e.name}</b>
-        {open ? e.detail : e.detail.slice(0, 100)}
-      </div>
-    );
-  if (e.kind === 'error') return <div className="log-row log-error">{e.message}</div>;
-  return <div className="log-row log-raw">{e.line}</div>;
-}
-
 const FINISHED = ['done', 'failed', 'cancelled', 'limited', 'interrupted'];
 
-export function TaskDetail({ task, events }: { task: Task; events: AgentEvent[] }) {
+export function TaskDetail({ task, events, draft }: { task: Task; events: AgentEvent[]; draft?: string }) {
   const canResume = (task.status === 'limited' || task.status === 'interrupted') && !!task.sessionId && !!task.worktree;
   const act = (p: Promise<unknown>) => p.catch((err) => alert(errorText(err)));
 
@@ -85,11 +70,12 @@ export function TaskDetail({ task, events }: { task: Task; events: AgentEvent[] 
 
       {task.status === 'consulting' && <ConsultView task={task} />}
 
-      {events.length > 0 && (
+      {(events.length > 0 || draft) && (
         <section className="log">
           {events.map((e, i) => (
             <EventRow key={i} e={e} />
           ))}
+          {draft && <div className="log-row log-text draft">{draft}</div>}
         </section>
       )}
 

@@ -12,6 +12,7 @@ import { TaskStore } from './taskStore';
 function fakeAdapter(script: string): Adapter {
   const parse = (line: string): ParsedLine => {
     const o = JSON.parse(line);
+    if (o.t === 'delta') return { events: [{ kind: 'delta', text: o.v }] };
     if (o.t === 'text') return { events: [{ kind: 'text', text: o.v }] };
     if (o.t === 'tool') return { events: [{ kind: 'tool', name: 'Write', detail: o.v }] };
     if (o.t === 'sid') return { events: [], sessionId: o.v, usageDelta: { tokens: 10 } };
@@ -66,6 +67,7 @@ function runner(script: string) {
 const OK_SCRIPT = `
 const fs = require('fs');
 console.log(JSON.stringify({t:'sid', v:'s-1'}));
+console.log(JSON.stringify({t:'delta', v:'hel'}));
 console.log(JSON.stringify({t:'text', v:'hello'}));
 fs.writeFileSync('made.txt', 'x');
 console.log(JSON.stringify({t:'done'}));`;
@@ -84,6 +86,10 @@ describe('TaskRunner', () => {
     expect(existsSync(join(repo, 'made.txt'))).toBe(false); // 원본은 그대로
     expect(events).toContainEqual({ kind: 'text', text: 'hello' });
     expect(r.readEvents('ok1')).toContainEqual({ kind: 'text', text: 'hello' });
+    // 쓰는 중인 글 조각은 실시간으로만 보내고, 지난 기록에는 완성된 글만 남긴다(설계 16절)
+    expect(events).toContainEqual({ kind: 'delta', text: 'hel' });
+    expect(r.readEvents('ok1')).not.toContainEqual({ kind: 'delta', text: 'hel' });
+    expect(t.activity?.steps).toBe(1);
   });
 
   it('cancel: cancelled로 끝난다', async () => {

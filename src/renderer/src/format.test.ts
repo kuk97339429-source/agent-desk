@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { agoText, elapsedText, errorText, resetText } from './format';
+import type { Task } from '../../shared/types';
+import { agoText, boardTasks, elapsedText, errorText, resetText } from './format';
 
 describe('agoText', () => {
   const now = Date.parse('2026-10-02T10:00:00Z');
@@ -49,5 +50,22 @@ describe('elapsedText', () => {
   });
   it('끝나지 않았으면 지금 시각 기준', () => {
     expect(elapsedText(t0, undefined, Date.parse('2026-10-02T00:03:00.000Z'))).toBe('3분');
+  });
+});
+
+describe('boardTasks', () => {
+  const now = Date.parse('2026-10-02T10:00:00Z');
+  const t = (id: string, status: Task['status'], endedAt?: string): Task => ({
+    id, repo: 'r', prompt: id, agent: 'claude', status, usage: {}, createdAt: '2026-10-02T09:00:00Z', endedAt,
+  });
+  it('실행 중·상의 중을 먼저, 10분 안에 끝난 작업을 뒤에 둔다', () => {
+    const tasks = [
+      t('recent', 'done', '2026-10-02T09:55:00Z'),
+      t('run', 'running'),
+      t('old', 'failed', '2026-10-02T09:49:59Z'),
+      t('consult', 'consulting'),
+      t('limit', 'limited', '2026-10-02T09:59:00Z'),
+    ];
+    expect(boardTasks(tasks, now).map((x) => x.id)).toEqual(['run', 'consult', 'recent', 'limit']);
   });
 });

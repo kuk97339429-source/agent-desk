@@ -12,6 +12,9 @@ function common(mode: 'acceptEdits' | 'plan', budgetUsd?: number): string[] {
   ];
 }
 
+// 설계 16절: 작업 실행은 글을 조각 단위로 받아 실시간으로 보여 준다. 의견 요청은 결과만 쓰므로 넣지 않는다
+const PARTIAL = '--include-partial-messages';
+
 const modelArgs = (model?: string) => (model ? ['--model', model] : []);
 
 function summarize(input: unknown): string {
@@ -38,6 +41,11 @@ export function parseClaudeLine(line: string): ParsedLine {
   if (obj.type === 'system') {
     if (obj.subtype !== 'init' || typeof obj.session_id !== 'string') return { events: [] };
     return { events: [], sessionId: obj.session_id, model: typeof obj.model === 'string' ? obj.model : undefined };
+  }
+
+  if (obj.type === 'stream_event') {
+    const delta = (obj.event as { delta?: { type?: unknown; text?: unknown } } | undefined)?.delta;
+    return delta?.type === 'text_delta' && typeof delta.text === 'string' ? { events: [{ kind: 'delta', text: delta.text }] } : { events: [] };
   }
 
   if (obj.type === 'assistant') {
@@ -91,9 +99,9 @@ export const claudeAdapter: Adapter = {
   id: 'claude',
   isAvailable: () => onPath('claude'),
   command: () => 'claude',
-  runArgs: (prompt, _cwd, model) => ['-p', safePrompt(prompt), ...common('acceptEdits'), ...modelArgs(model)],
+  runArgs: (prompt, _cwd, model) => ['-p', safePrompt(prompt), ...common('acceptEdits'), PARTIAL, ...modelArgs(model)],
   resumeArgs: (sessionId, _cwd, model) => [
-    '-p', RESUME_PROMPT, '--resume', sessionId, ...common('acceptEdits'), ...modelArgs(model),
+    '-p', RESUME_PROMPT, '--resume', sessionId, ...common('acceptEdits'), PARTIAL, ...modelArgs(model),
   ],
   opinionArgs: (prompt) => ['-p', safePrompt(prompt), ...common('plan', 0.3)],
   parseLine: parseClaudeLine,

@@ -22,13 +22,20 @@ export function App() {
   const [events, setEvents] = useState<Record<string, AgentEvent[]>>({});
   const [overview, setOverview] = useState<Overview>(EMPTY);
   const [creating, setCreating] = useState(false);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [sideOpen, setSideOpen] = useState(false); // 좁은 창에서만 쓰는 사이드바 열림 상태
 
   useEffect(() => {
     window.desk.listTasks().then(setTasks);
     const offU = window.desk.onTaskUpdate((t) =>
       setTasks((prev) => [t, ...prev.filter((p) => p.id !== t.id)].sort((a, b) => b.createdAt.localeCompare(a.createdAt))),
     );
-    const offE = window.desk.onTaskEvent((id, e) => setEvents((prev) => ({ ...prev, [id]: [...(prev[id] ?? []), e] })));
+    const offE = window.desk.onTaskEvent((id, e) => {
+      // 설계 16절: 쓰는 중인 글 조각은 따로 모으고, 완성된 글이 오면 비운다
+      if (e.kind === 'delta') return setDrafts((prev) => ({ ...prev, [id]: (prev[id] ?? '') + e.text }));
+      if (e.kind === 'text') setDrafts(({ [id]: _, ...rest }) => rest);
+      setEvents((prev) => ({ ...prev, [id]: [...(prev[id] ?? []), e] }));
+    });
     const refresh = () => window.desk.overview().then(setOverview).catch(() => {});
     refresh();
     const timer = setInterval(refresh, POLL_MS);
@@ -39,12 +46,21 @@ export function App() {
     };
   }, []);
 
-  const selectTask = async (id: string) => {
-    setSelected({ kind: 'task', id });
+  const loadEvents = async (id: string) => {
     const past = await window.desk.getEvents(id);
     // 파일 기록이 화면에 모인 실시간 이벤트보다 짧으면(읽는 사이 새 이벤트가 옴) 화면 쪽을 유지한다
     // ponytail: 길이 비교 근사. 정확히 하려면 이벤트에 순번을 붙여 합친다
     setEvents((prev) => ({ ...prev, [id]: (prev[id]?.length ?? 0) > past.length ? prev[id] : past }));
+  };
+
+  const select = (s: Selection) => {
+    setSelected(s);
+    setSideOpen(false);
+  };
+
+  const selectTask = (id: string) => {
+    select({ kind: 'task', id });
+    void loadEvents(id);
   };
 
   const task = selected?.kind === 'task' ? tasks.find((t) => t.id === selected.id) : undefined;
@@ -54,11 +70,15 @@ export function App() {
       : undefined;
 
   return (
-    <div className="layout">
+    <div className={`layout${sideOpen ? ' side-open' : ''}`}>
+      <button className="menu-btn" aria-expanded={sideOpen} onClick={() => setSideOpen(!sideOpen)}>
+        {sideOpen ? '닫기' : '메뉴'}
+      </button>
+      {sideOpen && <div className="backdrop" onClick={() => setSideOpen(false)} />}
       <aside className="sidebar">
         <UsagePanel usage={overview.usage} accounts={overview.accounts} />
         <div className="side-head">
-          <button className={selected === null ? 'primary' : ''} onClick={() => setSelected(null)}>
+          <button className={selected === null ? 'primary' : ''} onClick={() => select(null)}>
             진행 현황 ({tasks.filter((t) => t.status === 'running' || t.status === 'consulting').length})
           </button>
         </div>
@@ -66,13 +86,15 @@ export function App() {
         <ExternalList
           external={overview.external}
           selected={selected?.kind === 'ext' ? selected.key : null}
-          onSelect={(key) => setSelected({ kind: 'ext', key })}
+          onSelect={(key) => select({ kind: 'ext', key })}
         />
       </aside>
       <main className="detail">
-        {task && <TaskDetail key={task.id} task={task} events={events[task.id] ?? []} />}
+        {task && <TaskDetail key={task.id} task={task} events={events[task.id] ?? []} draft={drafts[task.id]} />}
         {ext && <ExternalDetail s={ext} />}
-        {!task && !ext && <ProgressView tasks={tasks} onSelect={selectTask} />}
+        {!task && !ext && (
+          <ProgressView tasks={tasks} events={events} drafts={drafts} onSelect={selectTask} onLoad={(id) => void loadEvents(id)} />
+        )}
       </main>
       {creating && (
         <NewTaskDialog
@@ -81,7 +103,7 @@ export function App() {
           onClose={() => setCreating(false)}
           onCreated={(t) => {
             setCreating(false);
-            setSelected({ kind: 'task', id: t.id });
+            select({ kind: 'task', id: t.id });
           }}
         />
       )}

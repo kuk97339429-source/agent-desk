@@ -10,6 +10,7 @@ describe('claudeAdapter args', () => {
       '-p', '고쳐줘',
       '--output-format', 'stream-json', '--verbose',
       '--permission-mode', 'acceptEdits',
+      '--include-partial-messages',
     ]);
   });
 
@@ -32,6 +33,7 @@ describe('claudeAdapter args', () => {
       '-p', '이어서 진행해줘', '--resume', 'sid-1',
       '--output-format', 'stream-json', '--verbose',
       '--permission-mode', 'acceptEdits',
+      '--include-partial-messages',
     ]);
   });
 
@@ -39,6 +41,7 @@ describe('claudeAdapter args', () => {
     const args = a.opinionArgs('누가?', 'C:/repo');
     expect(args).toContain('plan');
     expect(args.slice(-2)).toEqual(['--max-budget-usd', '0.3']);
+    expect(args).not.toContain('--include-partial-messages');
   });
 });
 
@@ -61,6 +64,13 @@ describe('claudeAdapter.parseLine', () => {
       { kind: 'text', text: '읽어볼게요' },
       { kind: 'tool', name: 'Read', detail: 'a.ts' },
     ]);
+  });
+
+  it('부분 메시지(stream_event)의 글 조각은 delta 이벤트, 다른 조각은 무시', () => {
+    const delta = (d: object) => JSON.stringify({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: d } });
+    expect(a.parseLine(delta({ type: 'text_delta', text: '읽어' })).events).toEqual([{ kind: 'delta', text: '읽어' }]);
+    expect(a.parseLine(delta({ type: 'input_json_delta', partial_json: '{""' })).events).toEqual([]);
+    expect(a.parseLine(JSON.stringify({ type: 'stream_event', event: { type: 'message_start' } })).events).toEqual([]);
   });
 
   it('성공 result: done, 비용, 최종 텍스트', () => {

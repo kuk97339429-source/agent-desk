@@ -11,6 +11,8 @@ export type TaskStatus =
 
 export type AgentEvent =
   | { kind: 'text'; text: string }
+  /** 쓰는 중인 글 조각(설계 16절). 완성된 글이 text로 다시 오므로 지난 기록에는 넣지 않는다 */
+  | { kind: 'delta'; text: string }
   | { kind: 'tool'; name: string; detail: string }
   | { kind: 'error'; message: string }
   | { kind: 'raw'; line: string };

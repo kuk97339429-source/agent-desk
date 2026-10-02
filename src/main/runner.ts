@@ -178,7 +178,8 @@ export class TaskRunner {
     return readFileSync(file, 'utf8')
       .split('\n')
       .filter(Boolean)
-      .flatMap((l) => safeParse(adapter, l).events);
+      .flatMap((l) => safeParse(adapter, l).events)
+      .filter((e) => e.kind !== 'delta'); // 완성된 글이 text로 따로 있다
   }
 
   private async exec(task: Task, entry: RunEntry, args: string[]): Promise<void> {
