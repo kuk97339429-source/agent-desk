@@ -15,7 +15,8 @@ export interface RunHandle {
 export function killTree(pid?: number): void {
   if (!pid) return;
   if (process.platform === 'win32') {
-    spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { windowsHide: true });
+    // taskkill을 못 찾는 환경에서도 메인 프로세스가 죽지 않게 오류를 받아 둔다
+    spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { windowsHide: true }).on('error', () => {});
   } else {
     try {
       process.kill(pid, 'SIGTERM');

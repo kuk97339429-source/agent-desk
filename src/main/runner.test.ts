@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentEvent, Task } from '../shared/types';
@@ -285,6 +285,23 @@ describe('TaskRunner', () => {
     await r.resume('r1');
     expect(store.get('r1')).toMatchObject({ status: 'done', worktree: wt });
     expect(store.get('r1')!.usage.tokens).toBe(20);
+  });
+
+  it('글 조각(stream_event) 줄은 화면에만 쓰고 기록 파일에는 남기지 않는다', async () => {
+    newTask('s1');
+    await runner(`console.log(JSON.stringify({type:'stream_event', event:{}})); console.log(JSON.stringify({t:'text', v:'hi'})); console.log(JSON.stringify({t:'done'}))`).start('s1');
+    const log = readFileSync(join(base, 'data', 'logs', 's1.jsonl'), 'utf8');
+    expect(log).not.toContain('stream_event');
+    expect(log).toContain('"hi"');
+  });
+
+  it('시작 준비 중 예상 못 한 오류가 나도 실행 중으로 남지 않고 failed로 끝난다', async () => {
+    newTask('x1');
+    const broken: Adapter = { ...fakeAdapter(OK_SCRIPT), runArgs: () => { throw new Error('인자 오류'); } };
+    const r = new TaskRunner(store, { claude: broken, codex: broken }, { update: () => {}, event: () => {} }, join(base, 'data', 'logs'));
+    await r.start('x1');
+    expect(r.isRunning('x1')).toBe(false);
+    expect(store.get('x1')).toMatchObject({ status: 'failed', error: expect.stringContaining('인자 오류') });
   });
 
   it('이어서 지시(설계 18절): 메시지를 어댑터에 넘기고, 기록에 사용자 메시지로 남긴다', async () => {

@@ -51,6 +51,17 @@ describe('runProcess', () => {
     expect(r.spawnError).toBeTruthy();
   });
 
+  it('본체가 끝났는데 손자 프로세스가 출력 파이프를 쥐고 있어도 곧 끝난 것으로 본다', async () => {
+    // AI가 개발 서버 같은 백그라운드 프로세스를 띄운 상황. 손자는 stdout을 물려받아 60초 동안 살아 있다
+    const script = `require('child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'inherit' }); console.log('bye'); process.exit(0)`;
+    const lines: string[] = [];
+    const t0 = Date.now();
+    const r = await runProcess(node, ['-e', script], tmpdir(), (l) => lines.push(l)).done;
+    expect(r.code).toBe(0);
+    expect(lines).toContain('bye');
+    expect(Date.now() - t0).toBeLessThan(8000);
+  }, 15000);
+
   it('kill하면 오래 걸리는 프로세스가 끝난다', async () => {
     const h = runProcess(node, ['-e', 'setTimeout(() => {}, 60000)'], tmpdir(), () => {});
     setTimeout(() => h.kill(), 200);

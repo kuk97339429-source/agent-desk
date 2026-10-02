@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { consultBlocked, sessionCommand, usageGuard } from './guard';
+import { checkTaskInput, consultBlocked, sessionCommand, usageGuard } from './guard';
 
 const usage = (...pcts: number[]) => ({ agent: 'claude' as const, checkedAt: 'x', windows: pcts.map((p, i) => ({ label: `w${i}`, percent: p })) });
 
@@ -40,11 +40,12 @@ describe('consultBlocked', () => {
 });
 
 describe('sessionCommand', () => {
-  it('세션이 있으면 그 폴더에서 이어서, 인자 배열로', () => {
-    expect(sessionCommand('claude', 'C:\\wt dir', 'abc-123', 'claude')).toEqual({
+  it('세션이 있으면 이어서, 인자 배열로. 폴더는 명령줄이 아니라 cwd로 넘긴다(& 같은 문자가 든 폴더 이름 대비)', () => {
+    expect(sessionCommand('claude', 'C:\\R&D dir', 'abc-123', 'claude')).toEqual({
       cmd: 'cmd',
+      cwd: 'C:\\R&D dir',
       // start의 첫 인자는 따옴표로 감싸져야 창 제목으로 인식된다. Node는 공백이 있는 인자만 따옴표로 감싼다
-      args: ['/c', 'start', 'agent-desk 세션', '/D', 'C:\\wt dir', 'cmd', '/k', 'claude', '--resume', 'abc-123'],
+      args: ['/c', 'start', 'agent-desk 세션', 'cmd', '/k', 'claude', '--resume', 'abc-123'],
     });
     expect(sessionCommand('codex', 'C:\\wt', 'x1', 'C:\\codex.exe').args.slice(-3)).toEqual(['C:\\codex.exe', 'resume', 'x1']);
   });
@@ -53,5 +54,20 @@ describe('sessionCommand', () => {
   });
   it('세션 ID에 영문·숫자·- 외의 문자가 있으면 거부(명령 주입 방지)', () => {
     expect(() => sessionCommand('claude', 'C:\\wt', 'a & del *', 'claude')).toThrow('세션 ID');
+  });
+});
+
+describe('checkTaskInput (화면에서 온 값 검증)', () => {
+  const ok = { repo: 'C:/repo', prompt: '고쳐줘', agent: 'claude' };
+  it('정상 값은 통과', () => {
+    expect(() => checkTaskInput(ok)).not.toThrow();
+    expect(() => checkTaskInput({ ...ok, agent: 'consult', models: { claude: 'opus', codex: 'gpt-5.5' } })).not.toThrow();
+  });
+  it('알 수 없는 AI, 빈 지시문, 너무 긴 지시문, 이상한 모델 이름은 거부', () => {
+    expect(() => checkTaskInput({ ...ok, agent: 'x' })).toThrow('알 수 없는 AI');
+    expect(() => checkTaskInput({ ...ok, prompt: '  ' })).toThrow('지시문');
+    expect(() => checkTaskInput({ ...ok, prompt: 'a'.repeat(20_001) })).toThrow('너무 깁니다');
+    expect(() => checkTaskInput({ ...ok, models: { claude: '--dangerously-skip-permissions' } })).toThrow('모델');
+    expect(() => checkTaskInput({ ...ok, models: { gemini: 'x' } })).toThrow('모델');
   });
 });

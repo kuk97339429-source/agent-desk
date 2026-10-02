@@ -101,6 +101,8 @@ describe('readLiveUsage (설계 17절, 상태 표시줄 중계 파일)', () => {
     expect(readLiveUsage(join(dir, 'none.json'))).toBeNull();
     writeFileSync(file, JSON.stringify({ at: '2026-10-03T02:00:00.000Z', rate_limits: null }));
     expect(readLiveUsage(file)).toBeNull();
+    writeFileSync(file, JSON.stringify({ at: '2026-10-03T02:00:00.000Z', rate_limits: { five_hour: { used_percentage: 5, resets_at: 'garbage' } } }));
+    expect(readLiveUsage(file)?.windows[0]).toEqual({ label: '5시간', percent: 5, resetsAt: undefined }); // 이상한 시각은 버리고 예외는 안 낸다
     writeFileSync(file, '{broken');
     expect(readLiveUsage(file)).toBeNull();
   });

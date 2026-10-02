@@ -91,9 +91,24 @@ export class TaskRunner {
     return t;
   }
 
+  // 저장이 실패해도(백신이 파일을 잡는 등) 화면에는 바뀐 상태를 보낸다
   private publish(task: Task): void {
-    this.store.save(task);
+    try {
+      this.store.save(task);
+    } catch (e) {
+      this.emit.event(task.id, { kind: 'error', message: `작업 상태 저장 실패: ${errMsg(e)}` });
+    }
     this.emit.update(task);
+  }
+
+  // claim 뒤에 예상 못 한 오류가 나면 실행 중 표시를 풀고 failed로 끝낸다. 안 그러면 중지·이어서 하기·정리가 모두 막힌다
+  private async guarded(task: Task, run: () => Promise<void>): Promise<void> {
+    try {
+      await run();
+    } catch (e) {
+      this.running.delete(task.id);
+      this.finish(task, { status: 'failed', message: `실행 준비 실패: ${errMsg(e)}` });
+    }
   }
 
   // 첫 await 전에 동기적으로 실행 중으로 표시해, 두 번 누르기나 준비 중 취소가 끼어들 틈을 없앤다
@@ -107,6 +122,11 @@ export class TaskRunner {
   async start(id: string): Promise<void> {
     const task = this.mustGet(id);
     const entry = this.claim(id);
+    return this.guarded(task, () => this.startClaimed(task, entry));
+  }
+
+  private async startClaimed(task: Task, entry: RunEntry): Promise<void> {
+    const id = task.id;
     task.status = 'running';
     this.publish(task);
     const adapter = this.adapters[task.agent!];
@@ -144,13 +164,16 @@ export class TaskRunner {
       this.emit.event(id, { kind: 'user', text });
     }
     const entry = this.claim(id);
-    task.status = 'running';
-    task.error = undefined;
-    task.resetHint = undefined;
-    task.endedAt = undefined;
-    this.publish(task);
-    const adapter = this.adapters[task.agent!];
-    await this.exec(task, entry, adapter.resumeArgs(task.sessionId, task.worktree, task.models?.[task.agent!], text));
+    const { sessionId, worktree } = task;
+    return this.guarded(task, async () => {
+      task.status = 'running';
+      task.error = undefined;
+      task.resetHint = undefined;
+      task.endedAt = undefined;
+      this.publish(task);
+      const adapter = this.adapters[task.agent!];
+      await this.exec(task, entry, adapter.resumeArgs(sessionId, worktree, task.models?.[task.agent!], text));
+    });
   }
 
   cancel(id: string): void {
@@ -200,7 +223,8 @@ export class TaskRunner {
 
     const handle = runProcess(adapter.command(), args, task.worktree!, (line) => {
       try {
-        appendFileSync(logFile, `${line}\n`);
+        // 글 조각은 완성된 글이 따로 오므로 기록 파일에 남기지 않는다(파일이 몇 배로 커지는 것을 막음)
+        if (!line.startsWith('{"type":"stream_event"')) appendFileSync(logFile, `${line}\n`);
         const p = safeParse(adapter, line);
         if (p.sessionId) task.sessionId = p.sessionId;
         if (p.model) task.model = p.model;

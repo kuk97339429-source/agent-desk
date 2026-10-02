@@ -9,7 +9,9 @@ export function windowLabel(minutes: number): string {
   return `${minutes}분`;
 }
 
-const iso = (sec: unknown) => (typeof sec === 'number' ? new Date(sec * 1000).toISOString() : undefined);
+// 외부 파일의 시각 값이 이상해도 예외를 내지 않고 버린다(형식이 바뀌어도 화면 전체가 멈추지 않게)
+const validIso = (d: Date) => (Number.isNaN(d.getTime()) ? undefined : d.toISOString());
+const iso = (sec: unknown) => (typeof sec === 'number' && Number.isFinite(sec) ? validIso(new Date(sec * 1000)) : undefined);
 
 /** Claude rate_limit_event 줄 → 5시간·7일 사용률 (docs/design.md 11절) */
 export function claudeUsageFromEvent(obj: Record<string, unknown>, checkedAt: string): AgentUsage | null {
@@ -39,7 +41,7 @@ export function readLiveUsage(file: string): AgentUsage | null {
   const rl = obj?.rate_limits as Record<string, { used_percentage?: number; resets_at?: number | string }> | null | undefined;
   if (!rl || typeof obj?.at !== 'string') return null;
   // resets_at은 초 단위 숫자나 ISO 문자열로 온다
-  const reset = (v: unknown) => (typeof v === 'number' ? iso(v) : typeof v === 'string' ? new Date(v).toISOString() : undefined);
+  const reset = (v: unknown) => (typeof v === 'number' ? iso(v) : typeof v === 'string' ? validIso(new Date(v)) : undefined);
   const windows: UsageWindow[] = [];
   for (const [key, label] of [['five_hour', '5시간'], ['seven_day', '7일']] as const) {
     const w = rl[key];

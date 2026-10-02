@@ -6,7 +6,8 @@ import { promisify } from 'node:util';
 const exec = promisify(execFile);
 
 async function git(cwd: string, args: string[]): Promise<string> {
-  const { stdout } = await exec('git', ['-C', cwd, ...args], { windowsHide: true });
+  // 바뀐 파일이 많으면 status 출력이 기본 한도(1MB)를 넘어 변경 목록이 통째로 빠진다
+  const { stdout } = await exec('git', ['-C', cwd, ...args], { windowsHide: true, maxBuffer: 32 * 1024 * 1024 });
   return stdout;
 }
 

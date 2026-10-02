@@ -8,7 +8,7 @@ import { readClaudeSessions, readCodexSessions } from './external';
 import { spawn } from 'node:child_process';
 import { readClaudeAccount, readCodexAccount } from './account';
 import { findCodexExe } from './codex';
-import { consultBlocked, sessionCommand, usageGuard } from './guard';
+import { checkTaskInput, consultBlocked, sessionCommand, usageGuard } from './guard';
 import { newerUsage, readCodexUsage, readLiveUsage } from './quota';
 import { claudeAdapter } from './claude';
 import { codexAdapter } from './codex';
@@ -43,10 +43,19 @@ function send(channel: string, ...args: unknown[]): void {
   if (win && !win.isDestroyed()) win.webContents.send(channel, ...args);
 }
 
+const safe = <T>(read: () => T): T | null => {
+  try {
+    return read();
+  } catch {
+    return null;
+  }
+};
+
 const showFailure = (title: string) => (err: Error) => dialog.showErrorBox(title, err.message);
 
 // 두 번 실행하면 두 앱이 tasks.json을 서로 덮어쓰고, 서로의 실행 중 작업을 중단으로 표시한다
-if (!app.requestSingleInstanceLock()) app.quit();
+// app.quit()은 비동기라 아래 whenReady가 두 번째 앱에서도 돌 수 있다. 바로 끝낸다
+if (!app.requestSingleInstanceLock()) app.exit(0);
 app.on('second-instance', () => {
   if (win) {
     if (win.isMinimized()) win.restore();
@@ -63,7 +72,8 @@ app.whenReady().then(() => {
   const quotaFile = join(dataDir, 'quota.json');
   let claudeUsage: AgentUsage | null = null;
   try {
-    claudeUsage = JSON.parse(readFileSync(quotaFile, 'utf8')) as AgentUsage;
+    const saved = JSON.parse(readFileSync(quotaFile, 'utf8')) as AgentUsage;
+    if (Array.isArray(saved?.windows) && typeof saved.checkedAt === 'string') claudeUsage = saved;
   } catch {
     // 아직 기록 없음
   }
@@ -95,8 +105,8 @@ app.whenReady().then(() => {
   ipcMain.handle('getEvents', (_e, id: string) => runner.readEvents(id));
 
   ipcMain.handle('createTask', async (_e, input: NewTaskInput) => {
+    checkTaskInput(input);
     const prompt = input.prompt.trim();
-    if (!prompt) throw new Error('지시문을 입력하세요');
     const root = await repoRoot(input.repo);
     if (!root) throw new Error('git 저장소가 아닙니다');
     const consult = input.agent === 'consult';
@@ -122,6 +132,7 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('confirmTask', (_e, id: string, agent: AgentId) => {
+    if (agent !== 'claude' && agent !== 'codex') throw new Error('알 수 없는 AI입니다');
     const task = mustGet(id);
     if (task.status !== 'consulting') throw new Error('상의 중인 작업만 확정할 수 있습니다');
     assertUsable(agent);
@@ -168,8 +179,9 @@ app.whenReady().then(() => {
   const codexHome = join(home, '.codex');
   const currentUsage = (): Partial<Record<AgentId, AgentUsage>> => {
     // 세 곳 중 가장 최근 값: agent-desk 실행 기록, Claude 자체 캐시, 상태 표시줄 중계(설계 17절)
-    const claude = [readClaudeAccount(join(home, '.claude.json')).usage, readLiveUsage(join(home, '.claude', 'agent-desk-usage.json'))].reduce(newerUsage, claudeUsage);
-    const codex = readCodexUsage(codexHome);
+    // 외부 파일 하나가 깨져도 화면과 보내기가 멈추지 않게, 읽기 실패한 곳은 '모름'으로 둔다
+    const claude = [safe(() => readClaudeAccount(join(home, '.claude.json')).usage), safe(() => readLiveUsage(join(home, '.claude', 'agent-desk-usage.json')))].reduce(newerUsage, claudeUsage);
+    const codex = safe(() => readCodexUsage(codexHome));
     return { ...(claude && { claude }), ...(codex && { codex }) };
   };
   // 설계 14절: 화면이 막아도 메인 프로세스에서 한 번 더 검사한다
@@ -181,11 +193,12 @@ app.whenReady().then(() => {
   };
 
   ipcMain.handle('overview', (): Overview => {
-    const claudeAcct = readClaudeAccount(join(home, '.claude.json'));
-    const codexAcct = readCodexAccount(codexHome);
+    const unknown = { plan: null, models: [], extraUsage: null };
+    const claudeAcct = safe(() => readClaudeAccount(join(home, '.claude.json'))) ?? unknown;
+    const codexAcct = safe(() => readCodexAccount(codexHome)) ?? unknown;
     const usage = currentUsage();
     return {
-      external: { claude: readClaudeSessions(join(home, '.claude')), codex: readCodexSessions(codexHome) },
+      external: { claude: safe(() => readClaudeSessions(join(home, '.claude'))), codex: safe(() => readCodexSessions(codexHome)) },
       usage: [usage.claude, usage.codex].filter((u): u is AgentUsage => !!u),
       accounts: {
         claude: { plan: claudeAcct.plan, models: claudeAcct.models, extraUsage: claudeAcct.extraUsage },
@@ -199,8 +212,8 @@ app.whenReady().then(() => {
     const root = await repoRoot(cwd); // git 폴더(저장소나 작업 worktree)에서만 연다
     if (!root) throw new Error('git 저장소 폴더가 아닙니다');
     const exe = agent === 'claude' ? 'claude' : (findCodexExe() ?? 'codex');
-    const { cmd, args } = sessionCommand(agent, cwd, sessionId, exe);
-    spawn(cmd, args, { shell: false, detached: true, stdio: 'ignore', windowsHide: true }).unref();
+    const s = sessionCommand(agent, cwd, sessionId, exe);
+    spawn(s.cmd, s.args, { cwd: s.cwd, shell: false, detached: true, stdio: 'ignore', windowsHide: true }).unref();
   });
 
   createWindow();
