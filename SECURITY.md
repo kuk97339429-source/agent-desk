@@ -37,7 +37,7 @@ agent-desk는 사용자 PC에서만 동작합니다. 서버가 없고, 앱 자�
 ## AI 실행 방식
 
 - **실행 위치**: 작업마다 새 git worktree에서 실행합니다. 원래 저장소 폴더에는 직접 쓰지 않고, merge는 사용자가 합니다
-- **Claude**: `claude -p --permission-mode acceptEdits`로 실행합니다. 파일 수정은 자동으로 허용되고, 그 밖의 도구 사용은 Claude Code의 권한 설정을 따릅니다(확인 창을 띄울 수 없는 모드라 허용되지 않은 도구는 거부됩니다)
+- **Claude**: `claude -p --permission-mode acceptEdits`로 실행합니다. 파일 수정은 자동으로 허용되고, 명령 실행(Bash) 같은 그 밖의 도구는 **사용자의 Claude Code 권한 설정(`~/.claude/settings.json`의 허용 규칙·기본 모드)을 따릅니다.** 설정에 따라 AI가 작업 폴더에서 명령을 실행할 수 있으며, 이 실행은 샌드박스 안이 아니라 사용자 권한으로 이뤄집니다. 명령 실행을 막고 싶으면 Claude Code 권한 설정에서 Bash를 허용하지 마세요
 - **Codex**: `codex exec -s workspace-write`(worktree에만 쓰기 가능한 샌드박스)로 실행합니다. 상의 모드의 의견 요청은 두 AI 모두 읽기 전용입니다
 - **AI가 만든 결과는 반드시 검토한 뒤 합치세요.** 앱은 결과의 안전성을 보장하지 않습니다
 
