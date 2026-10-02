@@ -13,6 +13,22 @@ describe('usageGuard', () => {
     expect(usageGuard(undefined).level).toBe('ok');
     expect(usageGuard(usage()).level).toBe('ok');
   });
+  const now = Date.parse('2026-10-02T17:00:00Z');
+  it('초기화 시각이 지난 창은 옛 값이라 판단에서 뺀다', () => {
+    const u = {
+      agent: 'claude' as const,
+      checkedAt: '2026-10-02T16:50:00Z',
+      windows: [
+        { label: '5시간', percent: 92, resetsAt: '2026-10-02T16:40:00Z' },
+        { label: '7일', percent: 72, resetsAt: '2026-10-03T13:00:00Z' },
+      ],
+    };
+    expect(usageGuard(u, now)).toMatchObject({ level: 'ok', percent: 72, window: '7일' });
+  });
+  it('30분 넘게 지난 값이면 stale', () => {
+    expect(usageGuard({ ...usage(50), checkedAt: '2026-10-02T16:29:00Z' }, now).stale).toBe(true);
+    expect(usageGuard({ ...usage(50), checkedAt: '2026-10-02T16:31:00Z' }, now).stale).toBe(false);
+  });
 });
 
 describe('consultBlocked', () => {

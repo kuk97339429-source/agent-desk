@@ -8,6 +8,7 @@ describe('agoText', () => {
     expect(agoText('2026-10-02T09:59:55Z', now)).toBe('방금');
     expect(agoText('2026-10-02T09:59:18Z', now)).toBe('42초 전');
     expect(agoText('2026-10-02T09:57:00Z', now)).toBe('3분 전');
+    expect(agoText('2026-10-02T05:16:00Z', now)).toBe('4시간 전');
   });
   it('값이 없으면 빈 문자열', () => {
     expect(agoText(undefined, now)).toBe('');

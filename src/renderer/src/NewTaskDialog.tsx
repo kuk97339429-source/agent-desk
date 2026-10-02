@@ -131,6 +131,15 @@ export function NewTaskDialog(props: {
                 : '보낼 수는 있지만 한도에 가깝습니다.'}
             </p>
           ))}
+        {guards.some((g) => g.stale) && (
+          <p className="warn">
+            {guards
+              .filter((g) => g.stale)
+              .map((g) => AGENT_NAME[g.agent])
+              .join(', ')}{' '}
+            사용률은 오래전에 받은 값이라 실제는 더 높을 수 있습니다. 한도가 걱정되면 공식 도구에서 /usage로 확인하세요.
+          </p>
+        )}
         {extraOn.length > 0 && (
           <p className="warn">
             {extraOn.map((a) => AGENT_NAME[a]).join(', ')}에 추가 사용이 켜져 있어 한도를 넘으면 실제 요금이 청구될 수 있습니다. Claude는 추가 요금 구간에 들어가는 즉시 멈춥니다.

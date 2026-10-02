@@ -11,7 +11,8 @@ export function agoText(iso: string | undefined, now = Date.now()): string {
   const sec = Math.max(0, Math.floor((now - Date.parse(iso)) / 1000));
   if (sec < 10) return '방금';
   if (sec < 60) return `${sec}초 전`;
-  return `${Math.floor(sec / 60)}분 전`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}분 전`;
+  return `${Math.floor(sec / 3600)}시간 전`;
 }
 
 export function resetText(resetsAt: string | undefined, now = Date.now()): string {
