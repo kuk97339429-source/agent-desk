@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { claudeUsageFromEvent, newerUsage, readCodexUsage, windowLabel } from './quota';
+import { claudeUsageFromEvent, newerUsage, readCodexUsage, readLiveUsage, windowLabel } from './quota';
 
 describe('newerUsage', () => {
   const u = (checkedAt: string) => ({ agent: 'claude' as const, windows: [], checkedAt });
@@ -74,5 +74,34 @@ describe('readCodexUsage', () => {
 
   it('sessions 폴더가 없으면 null', () => {
     expect(readCodexUsage(mkdtempSync(join(tmpdir(), 'codexhome-')))).toBeNull();
+  });
+});
+
+describe('readLiveUsage (설계 17절, 상태 표시줄 중계 파일)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'live-'));
+  const file = join(dir, 'agent-desk-usage.json');
+  it('rate_limits를 5시간·7일 창으로, 확인 시각은 기록 시각', () => {
+    writeFileSync(file, JSON.stringify({
+      at: '2026-10-03T02:00:00.000Z',
+      rate_limits: {
+        five_hour: { used_percentage: 12.4, resets_at: 1790990000 },
+        seven_day: { used_percentage: 91, resets_at: '2026-10-03T13:00:00.285387+00:00' },
+      },
+    }));
+    expect(readLiveUsage(file)).toEqual({
+      agent: 'claude',
+      checkedAt: '2026-10-03T02:00:00.000Z',
+      windows: [
+        { label: '5시간', percent: 12, resetsAt: new Date(1790990000 * 1000).toISOString() },
+        { label: '7일', percent: 91, resetsAt: '2026-10-03T13:00:00.285Z' },
+      ],
+    });
+  });
+  it('파일이 없거나, rate_limits가 비었거나, 깨졌으면 null', () => {
+    expect(readLiveUsage(join(dir, 'none.json'))).toBeNull();
+    writeFileSync(file, JSON.stringify({ at: '2026-10-03T02:00:00.000Z', rate_limits: null }));
+    expect(readLiveUsage(file)).toBeNull();
+    writeFileSync(file, '{broken');
+    expect(readLiveUsage(file)).toBeNull();
   });
 });

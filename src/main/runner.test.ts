@@ -287,6 +287,20 @@ describe('TaskRunner', () => {
     expect(store.get('r1')!.usage.tokens).toBe(20);
   });
 
+  it('이어서 지시(설계 18절): 메시지를 어댑터에 넘기고, 기록에 사용자 메시지로 남긴다', async () => {
+    newTask('f1');
+    let sent: string | undefined;
+    const adapter: Adapter = { ...fakeAdapter(OK_SCRIPT), resumeArgs: (_s, _c, _m, message) => ((sent = message), ['-e', OK_SCRIPT]) };
+    const r = new TaskRunner(store, { claude: adapter, codex: adapter }, { update: () => {}, event: (_id, e) => events.push(e) }, join(base, 'data', 'logs'));
+    await r.start('f1');
+    await expect(r.resume('f1', '   ')).rejects.toThrow('메시지를 입력하세요');
+    await r.resume('f1', ' 테스트도 추가해줘 ');
+    expect(sent).toBe('테스트도 추가해줘');
+    expect(store.get('f1')!.status).toBe('done');
+    expect(events).toContainEqual({ kind: 'user', text: '테스트도 추가해줘' });
+    expect(r.readEvents('f1')).toContainEqual({ kind: 'user', text: '테스트도 추가해줘' });
+  });
+
   it('cleanup: 실행 중이면 거부, 끝났으면 worktree와 브랜치 삭제', async () => {
     newTask('k1');
     const r = runner('setTimeout(() => {}, 60000)');

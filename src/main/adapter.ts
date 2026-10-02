@@ -30,7 +30,8 @@ export interface Adapter {
   command(): string;
   /** model이 비어 있으면 모델 인자를 넣지 않는다(기본 설정) */
   runArgs(prompt: string, cwd: string, model?: string): string[];
-  resumeArgs(sessionId: string, cwd: string, model?: string): string[];
+  /** message가 있으면 재개 문구 대신 그 메시지로 이어서 지시한다(설계 18절) */
+  resumeArgs(sessionId: string, cwd: string, model?: string, message?: string): string[];
   opinionArgs(prompt: string, repo: string): string[];
   parseLine(line: string): ParsedLine;
   /** 출력에 모델이 없을 때, 끝난 뒤 세션 기록에서 실제 모델을 찾는다(Codex) */

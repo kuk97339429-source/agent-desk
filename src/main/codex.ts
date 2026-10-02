@@ -79,8 +79,8 @@ export const codexAdapter: Adapter = {
   command: () => findCodexExe() ?? 'codex',
   runArgs: (prompt, cwd, model) => ['exec', '--json', ...modelArgs(model), '-s', 'workspace-write', '-C', cwd, safePrompt(prompt)],
   // `exec resume`에는 -s 옵션이 없어 설정 값으로 샌드박스를 넘긴다(codex exec resume --help 확인)
-  resumeArgs: (sessionId, _cwd, model) => [
-    'exec', 'resume', '--json', ...modelArgs(model), '-c', 'sandbox_mode="workspace-write"', sessionId, RESUME_PROMPT,
+  resumeArgs: (sessionId, _cwd, model, message) => [
+    'exec', 'resume', '--json', ...modelArgs(model), '-c', 'sandbox_mode="workspace-write"', sessionId, safePrompt(message ?? RESUME_PROMPT),
   ],
   opinionArgs: (prompt, repo) => ['exec', '--json', '-s', 'read-only', '-C', repo, safePrompt(prompt)],
   parseLine: parseCodexLine,

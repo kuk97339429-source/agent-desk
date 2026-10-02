@@ -100,8 +100,8 @@ export const claudeAdapter: Adapter = {
   isAvailable: () => onPath('claude'),
   command: () => 'claude',
   runArgs: (prompt, _cwd, model) => ['-p', safePrompt(prompt), ...common('acceptEdits'), PARTIAL, ...modelArgs(model)],
-  resumeArgs: (sessionId, _cwd, model) => [
-    '-p', RESUME_PROMPT, '--resume', sessionId, ...common('acceptEdits'), PARTIAL, ...modelArgs(model),
+  resumeArgs: (sessionId, _cwd, model, message) => [
+    '-p', safePrompt(message ?? RESUME_PROMPT), '--resume', sessionId, ...common('acceptEdits'), PARTIAL, ...modelArgs(model),
   ],
   opinionArgs: (prompt) => ['-p', safePrompt(prompt), ...common('plan', 0.3)],
   parseLine: parseClaudeLine,

@@ -37,6 +37,11 @@ describe('claudeAdapter args', () => {
     ]);
   });
 
+  it('이어서 지시(설계 18절): 재개 문구 대신 사용자 메시지, -로 시작하면 앞에 공백', () => {
+    expect(a.resumeArgs('sid-1', 'C:/wt', undefined, '테스트도 추가해줘').slice(0, 4)).toEqual(['-p', '테스트도 추가해줘', '--resume', 'sid-1']);
+    expect(a.resumeArgs('sid-1', 'C:/wt', undefined, '-v 붙여줘')[1]).toBe(' -v 붙여줘');
+  });
+
   it('opinionArgs: plan 모드, 상한 0.3', () => {
     const args = a.opinionArgs('누가?', 'C:/repo');
     expect(args).toContain('plan');

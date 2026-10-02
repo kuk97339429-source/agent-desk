@@ -8,11 +8,11 @@
 
 **Tech Stack:** Electron, electron-vite, React 18+, TypeScript(strict), Vitest, Node 내장 `child_process`/`readline`/`fs`. 그 외 의존성 추가 금지.
 
-**Spec:** `C:\Users\User\tool_manager\agent-desk\docs\design.md`
+**Spec:** `C:\Users\you\tool_manager\agent-desk\docs\design.md`
 
 ## Global Constraints
 
-- 프로젝트 루트: `C:\Users\User\tool_manager\agent-desk\` (새 git 저장소)
+- 프로젝트 루트: `C:\Users\you\tool_manager\agent-desk\` (새 git 저장소)
 - 대상 OS: Windows. 프로세스 트리 종료는 `taskkill /pid <pid> /T /F`
 - CLI 실행은 항상 `spawn(cmd, args, { shell: false, stdio: ['ignore','pipe','pipe'], windowsHide: true })`. 지시문은 인자 배열의 한 원소로만 전달
 - worktree 위치: `<저장소 상위>/.tm-worktrees/<저장소이름>/<작업ID>`, 브랜치 `tm/<작업ID>`. 원본 저장소 폴더 안에는 아무것도 만들지 않음
@@ -20,7 +20,7 @@
 - Codex 실행: `exec --json -s workspace-write -C <worktree>`, 의견 요청은 `-s read-only -C <원본 저장소>`
 - Codex 실행 파일: `%LOCALAPPDATA%\OpenAI\Codex\bin\*\codex.exe` 중 수정 시각이 가장 최근인 것
 - 재개 지시문 고정 문구: `이어서 진행해줘`
-- 기본 저장소: `C:\Users\User\Capstone`
+- 기본 저장소: `C:\Users\you\Capstone`
 - 화면 문구는 한국어
 - 상태 값: `consulting` | `running` | `done` | `failed` | `cancelled` | `limited` | `interrupted`
 - 자동 재개, 자동 merge, 패키징, 설정 화면, 화면 테스트는 만들지 않는다
@@ -76,7 +76,7 @@ agent-desk/
 - [ ] **Step 1: git 저장소와 package.json 만들기**
 
 ```bash
-cd /c/Users/User/tool_manager/agent-desk
+cd /c/Users/you/tool_manager/agent-desk
 git init
 ```
 
@@ -352,7 +352,7 @@ git commit -m "chore: agent-desk 프로젝트 뼈대"
 - [ ] **Step 1: 실험용 저장소 만들기**
 
 ```bash
-cd /c/Users/User/tool_manager/agent-desk
+cd /c/Users/you/tool_manager/agent-desk
 mkdir -p .spike/repo fixtures
 cd .spike/repo
 git init
@@ -418,7 +418,7 @@ Expected: `thread.started`(`thread_id`), `item.completed`(`item.type` = `agent_m
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /c/Users/User/tool_manager/agent-desk
+cd /c/Users/you/tool_manager/agent-desk
 git add fixtures docs/cli-notes.md
 git commit -m "chore: CLI 실제 출력 샘플과 메모"
 ```
@@ -2646,7 +2646,7 @@ export function TaskDetail({ task, events }: { task: Task; events: AgentEvent[] 
 import { useEffect, useState } from 'react';
 import type { AgentId, Task } from '../../shared/types';
 
-const DEFAULT_REPO = 'C:\\Users\\User\\Capstone';
+const DEFAULT_REPO = 'C:\\Users\\you\\Capstone';
 const REPO_KEY = 'agent-desk:lastRepo';
 
 function loadRepo(): string {
@@ -2782,7 +2782,7 @@ pre { white-space: pre-wrap; background: #f6f8fa; padding: 8px; border-radius: 6
 
 Run: `npm run typecheck` → Expected: 오류 없음
 Run: `npm test` → Expected: 전체 PASS
-Run: `npm start` → Expected: 왼쪽 [+ 새 작업]과 빈 목록, 오른쪽 안내 문구. [+ 새 작업]을 누르면 저장소 기본값 `C:\Users\User\Capstone`, 담당 AI 세 가지, 지시문 입력, 상한이 보인다. Capstone에 커밋 안 된 변경이 있으면 노란 경고가 뜬다. 이 단계에서는 보내기를 누르지 않는다(Task 13에서 실제 실행)
+Run: `npm start` → Expected: 왼쪽 [+ 새 작업]과 빈 목록, 오른쪽 안내 문구. [+ 새 작업]을 누르면 저장소 기본값 `C:\Users\you\Capstone`, 담당 AI 세 가지, 지시문 입력, 상한이 보인다. Capstone에 커밋 안 된 변경이 있으면 노란 경고가 뜬다. 이 단계에서는 보내기를 누르지 않는다(Task 13에서 실제 실행)
 
 - [ ] **Step 8: Commit**
 
@@ -2799,7 +2799,7 @@ git commit -m "feat: 작업 목록·상세·새 작업·상의 화면"
 
 - [ ] **Step 1: Claude 직접 지정**
 
-`npm start` → [+ 새 작업] → 저장소 `C:\Users\User\tool_manager\agent-desk\.spike\repo`, Claude, 지시문 `README.md 끝에 "checked by claude" 한 줄을 추가해줘`, 상한 0.5 → 보내기
+`npm start` → [+ 새 작업] → 저장소 `C:\Users\you\tool_manager\agent-desk\.spike\repo`, Claude, 지시문 `README.md 끝에 "checked by claude" 한 줄을 추가해줘`, 상한 0.5 → 보내기
 
 Expected: 실시간 로그에 말풍선·도구 줄이 뜨고, 완료 후 바뀐 파일 `README.md`와 추정 금액이 표시된다. [폴더 열기]로 worktree가 열리고, 원본 `.spike/repo/README.md`는 그대로다
 

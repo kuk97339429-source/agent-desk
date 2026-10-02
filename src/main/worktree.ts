@@ -61,9 +61,15 @@ async function branchExists(repo: string, branch: string): Promise<boolean> {
 }
 
 // 정리는 여러 번 눌러도 되게 하고, 사용자가 작업 브랜치에 커밋해 둔 것은 절대 지우지 않는다
-export async function removeWorktree(repo: string, id: string): Promise<void> {
+// AI는 파일만 고치고 커밋하지 않으므로, 작업 결과는 대개 커밋되지 않은 변경으로 남아 있다.
+// discard를 명시하지 않으면 그 변경을 지우지 않는다
+export async function removeWorktree(repo: string, id: string, discard = false): Promise<void> {
   const path = worktreePath(repo, id);
   const branch = `tm/${id}`;
+  if (!discard && existsSync(path)) {
+    const n = (await git(path, ['status', '--porcelain'])).split('\n').filter(Boolean).length;
+    if (n > 0) throw new Error(`작업 폴더에 커밋하지 않은 변경 ${n}개가 있습니다. 지우면 되돌릴 수 없습니다.`);
+  }
   if (await branchExists(repo, branch)) {
     const ahead = Number((await git(repo, ['rev-list', '--count', `HEAD..${branch}`])).trim());
     if (ahead > 0) {

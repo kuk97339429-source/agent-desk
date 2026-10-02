@@ -47,7 +47,7 @@ describe('worktree', () => {
     expect(c.files.sort()).toEqual(['a.txt', 'new.txt']);
     expect(c.stat).toMatch(/1 file changed/);
 
-    await removeWorktree(repo, 'abc123');
+    await removeWorktree(repo, 'abc123', true); // 고친 파일이 있으므로 버리기를 명시
     expect(existsSync(wt.path)).toBe(false);
     expect(git(repo, 'branch', '--list', 'tm/abc123').trim()).toBe('');
   });
@@ -69,6 +69,16 @@ describe('worktree', () => {
     await expect(removeWorktree(repo, 'keep1')).rejects.toThrow('합치지 않은 커밋 1개');
     expect(existsSync(wt.path)).toBe(true);
     expect(git(repo, 'branch', '--list', 'tm/keep1').trim()).toContain('tm/keep1');
+  });
+
+  it('커밋하지 않은 변경이 있으면 기본으로 거부하고, discard면 지운다', async () => {
+    const wt = await createWorktree(repo, 'dirty1');
+    writeFileSync(join(wt.path, 'new.txt'), 'x\n');
+    writeFileSync(join(wt.path, 'a.txt'), 'changed\n');
+    await expect(removeWorktree(repo, 'dirty1')).rejects.toThrow('커밋하지 않은 변경 2개');
+    expect(existsSync(join(wt.path, 'new.txt'))).toBe(true);
+    await removeWorktree(repo, 'dirty1', true);
+    expect(existsSync(wt.path)).toBe(false);
   });
 
   it('worktree 폴더를 직접 지웠어도 정리가 끝까지 된다(다시 눌러도 된다)', async () => {

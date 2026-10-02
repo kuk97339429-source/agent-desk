@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AgentUsage, UsageWindow } from '../shared/types';
 import { findFiles, parseJson, tailLines } from './logfiles';
@@ -25,6 +26,26 @@ export function claudeUsageFromEvent(obj: Record<string, unknown>, checkedAt: st
     }
   }
   return windows.length ? { agent: 'claude', windows, checkedAt } : null;
+}
+
+/** 상태 표시줄 중계 파일(scripts/usage-relay.cjs가 씀) → Claude 사용률 (설계 17절) */
+export function readLiveUsage(file: string): AgentUsage | null {
+  let obj: Record<string, unknown> | null;
+  try {
+    obj = parseJson(readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+  const rl = obj?.rate_limits as Record<string, { used_percentage?: number; resets_at?: number | string }> | null | undefined;
+  if (!rl || typeof obj?.at !== 'string') return null;
+  // resets_at은 초 단위 숫자나 ISO 문자열로 온다
+  const reset = (v: unknown) => (typeof v === 'number' ? iso(v) : typeof v === 'string' ? new Date(v).toISOString() : undefined);
+  const windows: UsageWindow[] = [];
+  for (const [key, label] of [['five_hour', '5시간'], ['seven_day', '7일']] as const) {
+    const w = rl[key];
+    if (w && typeof w.used_percentage === 'number') windows.push({ label, percent: Math.round(w.used_percentage), resetsAt: reset(w.resets_at) });
+  }
+  return windows.length ? { agent: 'claude', windows, checkedAt: obj.at } : null;
 }
 
 /** 같은 AI의 사용률이 두 군데서 오면(agent-desk 실행 기록, Claude 자체 캐시) 더 최근 것을 쓴다 */

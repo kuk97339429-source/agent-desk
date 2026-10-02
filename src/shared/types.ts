@@ -13,6 +13,8 @@ export type AgentEvent =
   | { kind: 'text'; text: string }
   /** 쓰는 중인 글 조각(설계 16절). 완성된 글이 text로 다시 오므로 지난 기록에는 넣지 않는다 */
   | { kind: 'delta'; text: string }
+  /** 사용자가 보낸 이어서 지시(설계 18절) */
+  | { kind: 'user'; text: string }
   | { kind: 'tool'; name: string; detail: string }
   | { kind: 'error'; message: string }
   | { kind: 'raw'; line: string };
@@ -116,8 +118,10 @@ export interface DeskApi {
   createTask(input: NewTaskInput): Promise<Task>;
   confirmTask(id: string, agent: AgentId): Promise<void>;
   cancelTask(id: string): Promise<void>;
-  resumeTask(id: string): Promise<void>;
-  cleanupTask(id: string): Promise<void>;
+  /** message가 있으면 같은 세션에 이어서 지시(설계 18절), 없으면 재개 문구로 이어서 하기 */
+  resumeTask(id: string, message?: string): Promise<void>;
+  /** discard가 아니면 커밋하지 않은 변경이 있을 때 거부한다 */
+  cleanupTask(id: string, discard?: boolean): Promise<void>;
   openFolder(id: string): Promise<void>;
   pickRepo(): Promise<string | null>;
   checkRepo(repo: string): Promise<{ root: string | null; dirty: boolean }>;

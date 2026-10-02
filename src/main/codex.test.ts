@@ -26,6 +26,11 @@ describe('codexAdapter args', () => {
     ]);
   });
 
+  it('이어서 지시(설계 18절): 재개 문구 대신 사용자 메시지, -로 시작하면 앞에 공백', () => {
+    expect(a.resumeArgs('t-1', 'C:/wt', undefined, '테스트도 추가해줘').at(-1)).toBe('테스트도 추가해줘');
+    expect(a.resumeArgs('t-1', 'C:/wt', undefined, '-v 붙여줘').at(-1)).toBe(' -v 붙여줘');
+  });
+
   it('opinionArgs: read-only, -C 원본 저장소', () => {
     expect(a.opinionArgs('누가?', 'C:/repo')).toEqual(['exec', '--json', '-s', 'read-only', '-C', 'C:/repo', '누가?']);
   });

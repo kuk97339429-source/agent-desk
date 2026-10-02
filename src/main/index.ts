@@ -9,7 +9,7 @@ import { spawn } from 'node:child_process';
 import { readClaudeAccount, readCodexAccount } from './account';
 import { findCodexExe } from './codex';
 import { consultBlocked, sessionCommand, usageGuard } from './guard';
-import { newerUsage, readCodexUsage } from './quota';
+import { newerUsage, readCodexUsage, readLiveUsage } from './quota';
 import { claudeAdapter } from './claude';
 import { codexAdapter } from './codex';
 import { Consultant } from './consultant';
@@ -142,10 +142,15 @@ app.whenReady().then(() => {
     }
   });
 
-  ipcMain.handle('resumeTask', (_e, id: string) => {
-    runner.resume(id).catch(showFailure('이어서 하기 실패'));
+  ipcMain.handle('resumeTask', (_e, id: string, message?: unknown) => {
+    // 화면에서 온 값이라 형식을 다시 확인한다. 실행은 기다리지 않으므로 입력 오류는 여기서 바로 돌려준다
+    if (message !== undefined && (typeof message !== 'string' || !message.trim())) throw new Error('메시지를 입력하세요');
+    if (typeof message === 'string' && message.length > 20_000) throw new Error('메시지가 너무 깁니다 (2만 자 이하)');
+    const task = mustGet(id);
+    if (task.agent) assertUsable(task.agent);
+    runner.resume(id, message).catch(showFailure('이어서 하기 실패'));
   });
-  ipcMain.handle('cleanupTask', (_e, id: string) => runner.cleanup(id));
+  ipcMain.handle('cleanupTask', (_e, id: string, discard?: unknown) => runner.cleanup(id, discard === true));
   ipcMain.handle('openFolder', async (_e, id: string) => {
     const wt = mustGet(id).worktree;
     if (wt) await shell.openPath(wt);
@@ -162,7 +167,8 @@ app.whenReady().then(() => {
   const home = homedir();
   const codexHome = join(home, '.codex');
   const currentUsage = (): Partial<Record<AgentId, AgentUsage>> => {
-    const claude = newerUsage(claudeUsage, readClaudeAccount(join(home, '.claude.json')).usage);
+    // 세 곳 중 가장 최근 값: agent-desk 실행 기록, Claude 자체 캐시, 상태 표시줄 중계(설계 17절)
+    const claude = [readClaudeAccount(join(home, '.claude.json')).usage, readLiveUsage(join(home, '.claude', 'agent-desk-usage.json'))].reduce(newerUsage, claudeUsage);
     const codex = readCodexUsage(codexHome);
     return { ...(claude && { claude }), ...(codex && { codex }) };
   };

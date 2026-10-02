@@ -129,10 +129,19 @@ export class TaskRunner {
     await this.exec(task, entry, adapter.runArgs(promptFor(task), task.worktree, task.models?.[task.agent!]));
   }
 
-  async resume(id: string): Promise<void> {
+  /** message가 있으면 재개 문구 대신 그 메시지로 같은 세션에 이어서 지시한다(설계 18절) */
+  async resume(id: string, message?: string): Promise<void> {
+    const text = message?.trim();
+    if (message !== undefined && !text) throw new Error('메시지를 입력하세요');
     const task = this.mustGet(id);
     if (!task.sessionId || !task.worktree || this.isRunning(id)) {
       throw new Error('이어서 할 수 없는 작업입니다 (세션 정보가 없거나 실행 중)');
+    }
+    if (text) {
+      // 사용자 메시지도 같은 기록 파일에 남겨, 다시 열었을 때 대화 흐름이 보이게 한다
+      mkdirSync(this.logDir, { recursive: true });
+      appendFileSync(join(this.logDir, `${id}.jsonl`), `${JSON.stringify({ type: USER_LINE, text })}\n`);
+      this.emit.event(id, { kind: 'user', text });
     }
     const entry = this.claim(id);
     task.status = 'running';
@@ -141,7 +150,7 @@ export class TaskRunner {
     task.endedAt = undefined;
     this.publish(task);
     const adapter = this.adapters[task.agent!];
-    await this.exec(task, entry, adapter.resumeArgs(task.sessionId, task.worktree, task.models?.[task.agent!]));
+    await this.exec(task, entry, adapter.resumeArgs(task.sessionId, task.worktree, task.models?.[task.agent!], text));
   }
 
   cancel(id: string): void {
@@ -159,12 +168,13 @@ export class TaskRunner {
     }
   }
 
-  async cleanup(id: string): Promise<void> {
+  /** discard가 아니면 커밋하지 않은 변경이 있을 때 거부한다 */
+  async cleanup(id: string, discard = false): Promise<void> {
     const task = this.mustGet(id);
     if (this.isRunning(id) || task.status === 'running' || task.status === 'consulting') {
       throw new Error('실행 중인 작업은 정리할 수 없습니다');
     }
-    if (task.worktree) await removeWorktree(task.repo, task.id);
+    if (task.worktree) await removeWorktree(task.repo, task.id, discard);
     task.worktree = undefined;
     task.branch = undefined;
     this.publish(task);
@@ -178,7 +188,7 @@ export class TaskRunner {
     return readFileSync(file, 'utf8')
       .split('\n')
       .filter(Boolean)
-      .flatMap((l) => safeParse(adapter, l).events)
+      .flatMap((l) => userLine(l) ?? safeParse(adapter, l).events)
       .filter((e) => e.kind !== 'delta'); // 완성된 글이 text로 따로 있다
   }
 
@@ -246,6 +256,19 @@ export class TaskRunner {
     task.resetHint = o.status === 'limited' ? o.resetHint : undefined;
     task.endedAt = new Date().toISOString();
     this.publish(task);
+  }
+}
+
+// 기록 파일 안의 사용자 메시지 줄. CLI 출력과 섞이지 않게 agent-desk만 쓰는 type을 붙인다
+const USER_LINE = 'agent_desk_user';
+
+function userLine(line: string): AgentEvent[] | null {
+  if (!line.startsWith(`{"type":"${USER_LINE}"`)) return null;
+  try {
+    const o = JSON.parse(line) as { text?: unknown };
+    return typeof o.text === 'string' ? [{ kind: 'user', text: o.text }] : [];
+  } catch {
+    return null;
   }
 }
 

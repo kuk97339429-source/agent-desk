@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { AgentEvent, Task } from '../../shared/types';
 import { ConsultView } from './ConsultView';
 import { EventRow, TaskProgress } from './ProgressView';
@@ -5,6 +6,39 @@ import { elapsedText, errorText } from './format';
 import { AGENT_NAME, STATUS_LABEL, agentClass, usageText } from './TaskList';
 
 const FINISHED = ['done', 'failed', 'cancelled', 'limited', 'interrupted'];
+
+/** 끝난 작업의 같은 세션에 이어서 지시한다(설계 18절). 같은 작업 폴더에서 이전 대화를 기억한 채 실행된다 */
+function FollowUp({ task }: { task: Task }) {
+  const [text, setText] = useState('');
+  const [error, setError] = useState('');
+  const send = () => {
+    setError('');
+    window.desk
+      .resumeTask(task.id, text)
+      .then(() => setText(''))
+      .catch((e) => setError(errorText(e)));
+  };
+  return (
+    <section className="followup">
+      <label className="field">
+        이어서 지시 <span className="muted">(같은 대화와 작업 폴더에서 이어집니다. Ctrl+Enter로 보내기)</span>
+        <textarea
+          rows={3}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && e.ctrlKey && text.trim() && send()}
+          placeholder="예: 방금 만든 함수에 테스트도 추가해줘"
+        />
+      </label>
+      {error && <p className="err">{error}</p>}
+      <div className="row end">
+        <button className="primary" disabled={!text.trim()} onClick={send}>
+          보내기
+        </button>
+      </div>
+    </section>
+  );
+}
 
 export function TaskDetail({ task, events, draft }: { task: Task; events: AgentEvent[]; draft?: string }) {
   const canResume = (task.status === 'limited' || task.status === 'interrupted') && !!task.sessionId && !!task.worktree;
@@ -79,6 +113,8 @@ export function TaskDetail({ task, events, draft }: { task: Task; events: AgentE
         </section>
       )}
 
+      {FINISHED.includes(task.status) && task.agent && task.sessionId && task.worktree && <FollowUp task={task} />}
+
       {FINISHED.includes(task.status) && task.worktree && (
         <section className="decision">
           <p>
@@ -94,11 +130,16 @@ export function TaskDetail({ task, events, draft }: { task: Task; events: AgentE
           <div className="actions">
             <button onClick={() => act(window.desk.openFolder(task.id))}>폴더 열기</button>
             <button
-              onClick={() => {
-                if (confirm('작업 폴더와 tm/ 브랜치를 지웁니다. 커밋하지 않은 변경은 사라집니다. 계속할까요?')) {
-                  act(window.desk.cleanupTask(task.id));
-                }
-              }}
+              onClick={() =>
+                // 잃을 것이 없으면 바로 정리하고, 커밋하지 않은 결과가 있으면 개수를 보여 주고 한 번 더 묻는다
+                window.desk.cleanupTask(task.id).catch((e) => {
+                  const msg = errorText(e);
+                  if (!msg.includes('커밋하지 않은 변경')) return alert(msg);
+                  if (confirm(`${msg}\n\nAI가 만든 결과가 사라집니다. 먼저 [폴더 열기]로 확인하거나 원본에 합치세요.\n그래도 지울까요?`)) {
+                    act(window.desk.cleanupTask(task.id, true));
+                  }
+                })
+              }
             >
               정리
             </button>

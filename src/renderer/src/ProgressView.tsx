@@ -17,6 +17,7 @@ export function EventRow({ e }: { e: AgentEvent }) {
     );
   if (e.kind === 'error') return <div className="log-row log-error">{e.message}</div>;
   if (e.kind === 'delta') return null;
+  if (e.kind === 'user') return <div className="log-row log-user">나: {e.text}</div>;
   return <div className="log-row log-raw">{e.line}</div>;
 }
 
