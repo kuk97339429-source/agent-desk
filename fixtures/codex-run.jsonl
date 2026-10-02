@@ -1,0 +1,8 @@
+{"type":"thread.started","thread_id":"01a0fb65-f023-7030-b25e-edf88e2f2116"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Exceeded skills context budget. All skill descriptions were removed and 89 additional skills were not included in the model-visible skills list."}}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"README.md의 첫 줄만 확인해 한 문장으로 알려드릴게요."}}
+{"type":"item.started","item":{"id":"item_2","type":"command_execution","command":"\"C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe\" -Command 'Get-Content -LiteralPath README.md -TotalCount 1'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_2","type":"command_execution","command":"\"C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe\" -Command 'Get-Content -LiteralPath README.md -TotalCount 1'","aggregated_output":"# spike\r\n","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_3","type":"agent_message","text":"README.md의 첫 줄은 `# spike`입니다."}}
+{"type":"turn.completed","usage":{"input_tokens":45173,"cached_input_tokens":34304,"cache_write_input_tokens":0,"output_tokens":85,"reasoning_output_tokens":0}}

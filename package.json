@@ -1,0 +1,46 @@
+{
+  "name": "agent-desk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Claude Code와 Codex에 작업을 보내고 진행 상황·사용량을 한 화면에서 보는 Windows 데스크톱 앱",
+  "author": "Pimanguk",
+  "main": "out/main/index.js",
+  "scripts": {
+    "start": "electron-vite dev",
+    "build": "electron-vite build",
+    "dist": "electron-vite build && electron-builder --win nsis",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "build": {
+    "appId": "io.github.agentdesk",
+    "productName": "agent-desk",
+    "directories": { "output": "release" },
+    "files": ["out/**", "package.json"],
+    "win": { "target": "nsis" },
+    "nsis": {
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "agent-desk"
+    }
+  },
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6",
+    "vitest": "^5.0.3"
+  }
+}
