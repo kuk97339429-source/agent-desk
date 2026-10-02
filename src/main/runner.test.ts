@@ -285,6 +285,8 @@ describe('TaskRunner', () => {
     await r.resume('r1');
     expect(store.get('r1')).toMatchObject({ status: 'done', worktree: wt });
     expect(store.get('r1')!.usage.tokens).toBe(20);
+    // 이어서 할 때는 이전 실행의 활동·진행 표시를 지우고 새로 센다(지난 2/2가 남아 있지 않게)
+    expect(store.get('r1')!.activity?.steps).toBe(1);
   });
 
   it('글 조각(stream_event) 줄은 화면에만 쓰고 기록 파일에는 남기지 않는다', async () => {
@@ -313,6 +315,11 @@ describe('TaskRunner', () => {
     await expect(r.resume('f1', '   ')).rejects.toThrow('메시지를 입력하세요');
     await r.resume('f1', ' 테스트도 추가해줘 ');
     expect(sent).toBe('테스트도 추가해줘');
+    // 진행 표시를 켠 작업이면 이어서 지시에도 같은 요청을 붙인다(기록에는 사용자 메시지만)
+    store.get('f1')!.progressHint = true;
+    await r.resume('f1', '하나 더');
+    expect(sent).toBe(`하나 더\n\n${PROGRESS_HINT}`);
+    expect(r.readEvents('f1')).toContainEqual({ kind: 'user', text: '하나 더' });
     expect(store.get('f1')!.status).toBe('done');
     expect(events).toContainEqual({ kind: 'user', text: '테스트도 추가해줘' });
     expect(r.readEvents('f1')).toContainEqual({ kind: 'user', text: '테스트도 추가해줘' });

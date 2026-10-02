@@ -170,9 +170,12 @@ export class TaskRunner {
       task.error = undefined;
       task.resetHint = undefined;
       task.endedAt = undefined;
+      task.activity = undefined; // 이전 실행의 진행 표시가 남아 있지 않게 새로 센다
       this.publish(task);
       const adapter = this.adapters[task.agent!];
-      await this.exec(task, entry, adapter.resumeArgs(sessionId, worktree, task.models?.[task.agent!], text));
+      // 진행 표시를 켠 작업이면 이어서 지시에도 같은 요청을 붙인다(기록에는 사용자 메시지만 남김)
+      const message = text && task.progressHint ? `${text}\n\n${PROGRESS_HINT}` : text;
+      await this.exec(task, entry, adapter.resumeArgs(sessionId, worktree, task.models?.[task.agent!], message));
     });
   }
 

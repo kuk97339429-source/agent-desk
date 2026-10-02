@@ -1,6 +1,6 @@
 {
   "name": "agent-desk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Claude Code와 Codex에 작업을 보내고 진행 상황·사용량을 한 화면에서 보는 Windows 데스크톱 앱",
   "author": "Pimanguk",
