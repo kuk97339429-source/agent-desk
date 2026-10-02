@@ -17,7 +17,7 @@ import { type Emitter, TaskRunner } from './runner';
 import { killOrphans } from './process';
 import { checkSetup } from './setup';
 import { TaskStore } from './taskStore';
-import { isDirty, repoRoot } from './worktree';
+import { fileDiff, isDirty, repoRoot } from './worktree';
 
 let win: BrowserWindow | null = null;
 
@@ -190,6 +190,12 @@ app.whenReady().then(() => {
   ipcMain.handle('openFolder', async (_e, id: string) => {
     const wt = mustGet(id).worktree;
     if (wt) await shell.openPath(wt);
+  });
+  ipcMain.handle('getDiff', (_e, id: string, file: unknown) => {
+    const task = mustGet(id);
+    // 화면에서 온 경로라 그 작업의 바뀐 파일 목록에 있는 것만 받는다(../ 같은 경로 차단)
+    if (typeof file !== 'string' || !task.worktree || !task.changedFiles?.includes(file)) throw new Error('이 작업에서 바뀐 파일이 아닙니다');
+    return fileDiff(task.worktree, file);
   });
   ipcMain.handle('pickRepo', async () => {
     const r = await dialog.showOpenDialog({ properties: ['openDirectory'] });

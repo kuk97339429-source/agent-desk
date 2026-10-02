@@ -12,6 +12,7 @@ const api: DeskApi = {
   resumeTask: call('resumeTask') as DeskApi['resumeTask'],
   cleanupTask: call('cleanupTask') as DeskApi['cleanupTask'],
   openFolder: call('openFolder') as DeskApi['openFolder'],
+  getDiff: call('getDiff') as DeskApi['getDiff'],
   pickRepo: call('pickRepo') as DeskApi['pickRepo'],
   checkRepo: call('checkRepo') as DeskApi['checkRepo'],
   paidKeys: call('paidKeys') as DeskApi['paidKeys'],

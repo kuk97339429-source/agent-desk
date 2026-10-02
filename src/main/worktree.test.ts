@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { changes, createWorktree, isDirty, removeWorktree, repoRoot, worktreePath } from './worktree';
+import { changes, createWorktree, fileDiff, isDirty, removeWorktree, repoRoot, worktreePath } from './worktree';
 
 let repo: string;
 
@@ -69,6 +69,18 @@ describe('worktree', () => {
     await expect(removeWorktree(repo, 'keep1')).rejects.toThrow('합치지 않은 커밋 1개');
     expect(existsSync(wt.path)).toBe(true);
     expect(git(repo, 'branch', '--list', 'tm/keep1').trim()).toContain('tm/keep1');
+  });
+
+  it('fileDiff(설계 21절): 고친 파일은 git diff, 새 파일은 모든 줄을 +로, 바이너리는 안내만', async () => {
+    const wt = await createWorktree(repo, 'diff1');
+    writeFileSync(join(wt.path, 'a.txt'), 'edited\n');
+    writeFileSync(join(wt.path, '새 파일.txt'), 'one\ntwo\n');
+    writeFileSync(join(wt.path, 'bin.dat'), Buffer.from([0, 1, 2, 0]));
+    const mod = await fileDiff(wt.path, 'a.txt');
+    expect(mod).toContain('-a');
+    expect(mod).toContain('+edited');
+    expect(await fileDiff(wt.path, '새 파일.txt')).toBe('새 파일\n+one\n+two');
+    expect(await fileDiff(wt.path, 'bin.dat')).toContain('바이너리');
   });
 
   it('커밋하지 않은 변경이 있으면 기본으로 거부하고, discard면 지운다', async () => {

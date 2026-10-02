@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -50,6 +50,24 @@ export async function changes(worktree: string): Promise<{ files: string[]; stat
   const tracked = (await git(worktree, ['diff', '--stat', 'HEAD'])).trim().split('\n').pop() ?? '';
   const stat = [tracked, untracked > 0 ? `새 파일 ${untracked}개` : ''].filter(Boolean).join(' · ');
   return { files, stat };
+}
+
+const MAX_DIFF = 200_000; // 화면으로 보내는 diff 상한(자)
+
+/** 작업 폴더에서 파일 하나가 바뀐 내용(설계 21절). 새 파일은 모든 줄을 +로, 바이너리는 안내만 */
+export async function fileDiff(worktree: string, file: string): Promise<string> {
+  const status = await git(worktree, ['-c', 'core.quotePath=false', 'status', '--porcelain', '--untracked-files=all', '--', file]);
+  let out: string;
+  if (status.startsWith('??')) {
+    const body = readFileSync(join(worktree, file));
+    out = body.includes(0)
+      ? '바이너리 파일이라 내용을 보여 주지 않습니다'
+      : `새 파일\n${body.toString('utf8').replace(/\r?\n$/, '').split(/\r?\n/).map((l) => `+${l}`).join('\n')}`;
+  } else {
+    out = await git(worktree, ['-c', 'core.quotePath=false', 'diff', 'HEAD', '--', file]);
+    if (/^Binary files /m.test(out)) out = '바이너리 파일이라 내용을 보여 주지 않습니다';
+  }
+  return out.length > MAX_DIFF ? `${out.slice(0, MAX_DIFF)}\n… (너무 길어 여기까지만 보여 줍니다)` : out;
 }
 
 async function branchExists(repo: string, branch: string): Promise<boolean> {

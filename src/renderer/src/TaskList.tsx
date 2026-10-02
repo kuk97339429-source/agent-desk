@@ -1,5 +1,6 @@
+import type { KeyboardEvent } from 'react';
 import type { AgentId, Task, TaskStatus } from '../../shared/types';
-import { elapsedText } from './format';
+import { elapsedText, groupTasks, lastLine } from './format';
 
 export const AGENT_NAME: Record<AgentId, string> = { claude: 'Claude', codex: 'Codex' };
 
@@ -22,6 +23,21 @@ export function usageText(t: Task): string {
 export const agentClass = (t: Task) => `agent-${t.agent ?? 'none'}`;
 const isLive = (t: Task) => t.status === 'running' || t.status === 'consulting';
 
+// ↑↓로 목록 안에서 이동한다(묶음이 나뉘어 있어도 한 줄로 이어서). Enter·Space로 연다
+function moveFocus(e: KeyboardEvent<HTMLElement>, onOpen: () => void) {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    onOpen();
+    return;
+  }
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  e.preventDefault();
+  const items = [...(e.currentTarget.closest('.task-groups')?.querySelectorAll<HTMLElement>('[data-task]') ?? [])];
+  const i = items.indexOf(e.currentTarget);
+  items[e.key === 'ArrowDown' ? Math.min(i + 1, items.length - 1) : Math.max(i - 1, 0)]?.focus();
+}
+
+/** 설계 21절: 내가 볼 것부터 묶어서 보여 주고, 줄마다 지금 하는 일이나 내가 할 일 한 줄 */
 export function TaskList(props: { tasks: Task[]; selected: string | null; onSelect: (id: string) => void; onNew: () => void }) {
   return (
     <section className="side-section">
@@ -32,27 +48,39 @@ export function TaskList(props: { tasks: Task[]; selected: string | null; onSele
         </button>
       </div>
       {props.tasks.length === 0 && <p className="empty">아직 보낸 작업이 없습니다</p>}
-      <ul className="list">
-        {props.tasks.map((t) => (
-          <li
-            key={t.id}
-            tabIndex={0}
-            className={`${agentClass(t)}${t.id === props.selected ? ' active' : ''}`}
-            onClick={() => props.onSelect(t.id)}
-            onKeyDown={(e) => e.key === 'Enter' && props.onSelect(t.id)}
-          >
-            <span className="title">
-              <span className={`dot${isLive(t) ? ' live' : ''}`} aria-hidden />
-              {t.prompt.split('\n')[0]}
-            </span>
-            <span className="sub">
-              <span>{t.agent ? AGENT_NAME[t.agent] : '담당 미정'}</span>
-              <span className={t.status === 'failed' ? 'err' : t.status === 'limited' ? 'warn' : ''}>{STATUS_LABEL[t.status]}</span>
-              <span>{elapsedText(t.createdAt, t.endedAt)}</span>
-            </span>
-          </li>
+      <div className="task-groups">
+        {groupTasks(props.tasks).map((g) => (
+          <div key={g.key} className={`task-group group-${g.key}`}>
+            <h3 className="group-head">
+              {g.label} <span className="count">{g.tasks.length}</span>
+            </h3>
+            <ul className="list">
+              {g.tasks.map((t) => (
+                <li
+                  key={t.id}
+                  data-task
+                  tabIndex={0}
+                  aria-current={t.id === props.selected ? 'true' : undefined}
+                  className={`${agentClass(t)}${t.id === props.selected ? ' active' : ''}`}
+                  onClick={() => props.onSelect(t.id)}
+                  onKeyDown={(e) => moveFocus(e, () => props.onSelect(t.id))}
+                >
+                  <span className="title">
+                    <span className={`dot${isLive(t) ? ' live' : ''}`} aria-hidden />
+                    {t.prompt.split('\n')[0]}
+                  </span>
+                  <span className="sub">
+                    <span>{t.agent ? AGENT_NAME[t.agent] : '담당 미정'}</span>
+                    <span className={t.status === 'failed' ? 'err' : t.status === 'limited' ? 'warn' : ''}>{STATUS_LABEL[t.status]}</span>
+                    <span>{elapsedText(t.createdAt, t.endedAt)}</span>
+                  </span>
+                  {lastLine(t) && <span className="last-line">{lastLine(t)}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
         ))}
-      </ul>
+      </div>
     </section>
   );
 }

@@ -12,17 +12,22 @@ export interface ProgressMark {
 
 const MARK = /\[진행\s*(\d+)\s*\/\s*(\d+)\]\s*([^\n]*)/g;
 
-/** 글에서 마지막 [진행 n/N] 표시를 읽는다. 말이 안 되는 값(0단계, n > N)은 버린다 */
-export function parseProgress(text: string): ProgressMark | null {
-  let last: ProgressMark | null = null;
+/** 글 속의 [진행 n/N] 표시를 모두 읽는다. 말이 안 되는 값(0단계, n > N)은 버린다 */
+export function progressMarks(text: string): ProgressMark[] {
+  const marks: ProgressMark[] = [];
   for (const m of text.matchAll(MARK)) {
     const step = Number(m[1]);
     const total = Number(m[2]);
     if (step < 1 || total < 1 || step > total) continue;
     const label = m[3].trim();
-    last = label ? { step, total, label } : { step, total };
+    marks.push(label ? { step, total, label } : { step, total });
   }
-  return last;
+  return marks;
+}
+
+/** 글에서 마지막 [진행 n/N] 표시 */
+export function parseProgress(text: string): ProgressMark | null {
+  return progressMarks(text).at(-1) ?? null;
 }
 
 /** 시작한 단계는 아직 끝나지 않은 것으로 보고, 작업이 완료되면 100 */

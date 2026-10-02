@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentEvent, Task } from '../../shared/types';
-import { agoText, applyDrafts, applyEvents, boardTasks, elapsedText, errorText, mergeCommands, recentStats, resetText } from './format';
+import { agoText, applyDrafts, applyEvents, boardTasks, elapsedText, errorText, diffLines, groupTasks, lastLine, mergeCommands, recentStats, resetText, stepList } from './format';
 
 describe('agoText', () => {
   const now = Date.parse('2026-10-02T10:00:00Z');
@@ -124,5 +124,66 @@ describe('recentStats (설계 20절, 보내기 전 참고값)', () => {
     expect(recentStats(tasks, 'claude', 2)).toEqual({ count: 2, avgMinutes: 7, avgCostUsd: 0.4, avgTokens: undefined });
     expect(recentStats(tasks, 'codex')).toEqual({ count: 1, avgMinutes: 2, avgCostUsd: undefined, avgTokens: 5000 });
     expect(recentStats([], 'claude')).toBeNull();
+  });
+});
+
+describe('설계 21절 화면 논리', () => {
+  const base = { repo: 'r', prompt: 'p', agent: 'claude' as const, usage: {}, createdAt: '2026-10-03T00:00:00Z' };
+  const T = (id: string, extra: Partial<Task>): Task => ({ ...base, id, status: 'done', ...extra });
+
+  it('diffLines: 머리말은 빼고 줄 종류를 나눈다', () => {
+    const text = ['diff --git a/a.txt b/a.txt', 'index 1..2 100644', '--- a/a.txt', '+++ b/a.txt', '@@ -1 +1 @@', '-a', '+edited', ' same'].join('\n');
+    expect(diffLines(text)).toEqual([
+      { kind: 'hunk', text: '@@ -1 +1 @@' },
+      { kind: 'del', text: '-a' },
+      { kind: 'add', text: '+edited' },
+      { kind: 'ctx', text: ' same' },
+    ]);
+    expect(diffLines('새 파일\n+one')).toEqual([{ kind: 'meta', text: '새 파일' }, { kind: 'add', text: '+one' }]);
+    expect(diffLines('\\ No newline at end of file')).toEqual([{ kind: 'meta', text: '(파일 끝에 줄바꿈 없음)' }]);
+  });
+
+  it('groupTasks: 확인 필요 → 실행 중 → 검토할 결과 → 끝남, 빈 묶음은 뺀다', () => {
+    const tasks = [
+      T('run', { status: 'running' }),
+      T('ask', { status: 'consulting', agent: null }),
+      T('pick', { status: 'consulting', agent: null, consult: { opinions: {}, decision: { assignee: 'claude', reason: '', plan: '' } } }),
+      T('lim', { status: 'limited' }),
+      T('fail', { status: 'failed' }),
+      T('rev', { status: 'done', worktree: 'w', changedFiles: ['a'] }),
+      T('clean', { status: 'done' }),
+      T('stop', { status: 'cancelled' }),
+    ];
+    expect(groupTasks(tasks).map((g) => [g.key, g.tasks.map((t) => t.id)])).toEqual([
+      ['attention', ['pick', 'lim', 'fail']],
+      ['running', ['run', 'ask']],
+      ['review', ['rev']],
+      ['ended', ['clean', 'stop']],
+    ]);
+    expect(groupTasks([T('x', { status: 'running' })]).map((g) => g.key)).toEqual(['running']);
+  });
+
+  it('lastLine: 상태에 맞는 한 줄', () => {
+    expect(lastLine(T('a', { status: 'running', activity: { steps: 3, lastAction: 'Edit a.ts' } }))).toBe('Edit a.ts');
+    expect(lastLine(T('b', { status: 'running' }))).toBe('시작하는 중');
+    expect(lastLine(T('c', { status: 'failed', error: '로그인이 필요합니다\n자세히' }))).toBe('로그인이 필요합니다');
+    expect(lastLine(T('d', { status: 'limited', resetHint: '18:00 이후' }))).toBe('18:00 이후 이어서 하기');
+    expect(lastLine(T('e', { status: 'consulting', agent: null, consult: { opinions: {}, decision: { assignee: 'codex', reason: '', plan: '' } } }))).toBe('담당을 골라 주세요');
+    expect(lastLine(T('f', { status: 'done', worktree: 'w', changedFiles: ['a', 'b'] }))).toBe('바뀐 파일 2개 검토');
+  });
+
+  it('stepList: 나온 [진행 n/N]을 단계 목록으로, 지금 단계 앞은 끝남, 완료면 모두 끝남', () => {
+    const ev: AgentEvent[] = [
+      { kind: 'text', text: '[진행 1/3] 읽기' },
+      { kind: 'tool', name: 'Read', detail: 'a' },
+      { kind: 'text', text: '설명\n[진행 2/3] 고치기' },
+    ];
+    expect(stepList(ev, 'running')).toEqual([
+      { n: 1, label: '읽기', state: 'done' },
+      { n: 2, label: '고치기', state: 'active' },
+      { n: 3, label: undefined, state: 'todo' },
+    ]);
+    expect(stepList(ev, 'done').every((s) => s.state === 'done')).toBe(true);
+    expect(stepList([{ kind: 'text', text: '표시 없음' }], 'running')).toEqual([]);
   });
 });

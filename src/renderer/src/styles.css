@@ -181,3 +181,35 @@ select:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .setup li.bad { color: var(--danger); }
 .setup li.opt { color: var(--muted); }
 .setup button { justify-self: start; }
+
+/* 설계 21절: 상태별 묶음 목록 */
+.task-groups { display: grid; gap: 10px; }
+.group-head { font-size: 12px; font-weight: 600; color: var(--muted); padding: 0 16px; display: flex; gap: 6px; align-items: center; }
+.group-head .count { font-weight: 400; }
+.group-attention .group-head { color: var(--warn); }
+.list .last-line { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-attention .last-line { color: var(--text); }
+
+/* 설계 21절: 단계 목록 */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 12px; }
+.steps li { display: flex; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.steps .step-done { color: var(--muted); }
+.steps .step-done span { color: var(--codex); }
+.steps .step-active { color: var(--text); font-weight: 600; }
+.steps .step-active span { color: var(--agent); animation: pulse 2.4s ease-in-out infinite; }
+.steps .step-todo { color: var(--muted); opacity: 0.7; }
+@media (prefers-reduced-motion: reduce) { .steps .step-active span { animation: none; } }
+
+/* 설계 21절: 바뀐 파일과 diff */
+.files li { display: grid; gap: 4px; }
+.file-btn { font: inherit; text-align: left; background: none; border: 0; border-radius: 4px; padding: 2px 6px; color: var(--text); white-space: normal; overflow-wrap: anywhere; }
+.file-btn:hover { background: var(--panel-2); border: 0; }
+.diff { font: 12px/1.5 var(--mono); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 0; max-height: 420px; overflow: auto; }
+.diff > div { padding: 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff > p { padding: 4px 10px; }
+.diff-add { background: rgba(91, 198, 232, 0.12); color: #bfeaf7; }
+.diff-del { background: rgba(240, 124, 124, 0.14); color: #f6c4c4; }
+.diff-hunk { color: var(--muted); margin-top: 4px; }
+.diff-meta { color: var(--muted); font-style: italic; }
+.diff-ctx { color: var(--muted); }
+.decision h3 { font-size: 14px; }

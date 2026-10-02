@@ -134,6 +134,8 @@ export interface DeskApi {
   /** discard가 아니면 커밋하지 않은 변경이 있을 때 거부한다 */
   cleanupTask(id: string, discard?: boolean): Promise<void>;
   openFolder(id: string): Promise<void>;
+  /** 바뀐 파일 하나의 diff(설계 21절). 그 작업의 바뀐 파일 목록에 있는 것만 */
+  getDiff(id: string, file: string): Promise<string>;
   pickRepo(): Promise<string | null>;
   checkRepo(repo: string): Promise<{ root: string | null; dirty: boolean }>;
   paidKeys(): Promise<string[]>;

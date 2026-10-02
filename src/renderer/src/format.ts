@@ -1,4 +1,5 @@
 import type { AgentEvent, AgentId, Task } from '../../shared/types';
+import { progressMarks } from '../../shared/progress';
 
 // IPC로 던진 오류에는 Electron이 "Error invoking remote method 'x': Error: " 접두어를 붙인다
 export function errorText(e: unknown): string {
@@ -96,4 +97,89 @@ export function recentStats(tasks: Task[], agent: AgentId, n = 10) {
     avgCostUsd: cost === undefined ? undefined : Math.round(cost * 100) / 100,
     avgTokens: tokens === undefined ? undefined : Math.round(tokens),
   };
+}
+
+// ---- 설계 21절: 검토 중심 화면 ----
+
+export type DiffLine = { kind: 'add' | 'del' | 'hunk' | 'ctx' | 'meta'; text: string };
+
+/** diff 글을 줄 종류별로 나눈다. git 머리말(diff --git, index, ---, +++)은 뺀다 */
+export function diffLines(text: string): DiffLine[] {
+  const out: DiffLine[] = [];
+  for (const line of text.split('\n')) {
+    if (/^(diff --git |index |--- |\+\+\+ |new file mode|deleted file mode|similarity index|rename (from|to) )/.test(line)) continue;
+    if (line.startsWith('\\ ')) out.push({ kind: 'meta', text: '(파일 끝에 줄바꿈 없음)' }); // git의 "\ No newline at end of file"
+    else if (line.startsWith('@@')) out.push({ kind: 'hunk', text: line });
+    else if (line.startsWith('+')) out.push({ kind: 'add', text: line });
+    else if (line.startsWith('-')) out.push({ kind: 'del', text: line });
+    else if (line.startsWith(' ')) out.push({ kind: 'ctx', text: line });
+    else if (line) out.push({ kind: 'meta', text: line });
+  }
+  return out;
+}
+
+const awaitingPick = (t: Task) => t.status === 'consulting' && !!(t.consult?.decision || t.consult?.error);
+
+/** 왼쪽 목록 묶음: 내가 볼 것(확인 필요) → 실행 중 → 검토할 결과 → 끝남. 빈 묶음은 뺀다 */
+export function groupTasks(tasks: Task[]): { key: string; label: string; tasks: Task[] }[] {
+  const groups = [
+    { key: 'attention', label: '확인 필요', tasks: [] as Task[] },
+    { key: 'running', label: '실행 중', tasks: [] as Task[] },
+    { key: 'review', label: '검토할 결과', tasks: [] as Task[] },
+    { key: 'ended', label: '끝남', tasks: [] as Task[] },
+  ];
+  for (const t of tasks) {
+    const g =
+      awaitingPick(t) || t.status === 'limited' || t.status === 'failed' || t.status === 'interrupted'
+        ? 0
+        : t.status === 'running' || t.status === 'consulting'
+          ? 1
+          : t.status === 'done' && t.worktree && t.changedFiles?.length
+            ? 2
+            : 3;
+    groups[g].tasks.push(t);
+  }
+  return groups.filter((g) => g.tasks.length > 0);
+}
+
+/** 목록 줄 아래에 보일 한 줄: 지금 하는 일이나 내가 할 일 */
+export function lastLine(t: Task): string {
+  if (awaitingPick(t)) return '담당을 골라 주세요';
+  switch (t.status) {
+    case 'running':
+      return t.activity?.lastAction ?? '시작하는 중';
+    case 'consulting':
+      return '두 AI의 의견을 받는 중';
+    case 'limited':
+      return t.resetHint ? `${t.resetHint} 이어서 하기` : '한도 초기화 뒤 이어서 하기';
+    case 'failed':
+    case 'interrupted':
+      return t.error?.split('\n')[0] ?? '이어서 하거나 정리하세요';
+    case 'done':
+      return t.worktree && t.changedFiles?.length ? `바뀐 파일 ${t.changedFiles.length}개 검토` : '정리됨';
+    default:
+      return '';
+  }
+}
+
+export type Step = { n: number; label?: string; state: 'done' | 'active' | 'todo' };
+
+/** AI가 알려 준 [진행 n/N] 표시들로 단계 목록을 만든다. 지금 단계 앞은 끝남, 작업이 완료면 모두 끝남 */
+export function stepList(events: AgentEvent[], status: Task['status']): Step[] {
+  const labels = new Map<number, string | undefined>();
+  let current = 0;
+  let total = 0;
+  for (const e of events) {
+    if (e.kind !== 'text') continue;
+    for (const m of progressMarks(e.text)) {
+      if (m.label || !labels.has(m.step)) labels.set(m.step, m.label);
+      current = m.step;
+      total = m.total;
+    }
+  }
+  return Array.from({ length: total }, (_, i) => {
+    const n = i + 1;
+    const state = status === 'done' || n < current ? 'done' : n === current ? 'active' : 'todo';
+    return { n, label: labels.get(n), state };
+  });
 }

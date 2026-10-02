@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import type { AgentEvent, Task } from '../../shared/types';
 import { ConsultView } from './ConsultView';
-import { EventRow, TaskProgress, useNow } from './ProgressView';
-import { elapsedText, errorText, mergeCommands } from './format';
+import { EventRow, StepList, TaskProgress, useNow } from './ProgressView';
+import { diffLines, elapsedText, errorText, mergeCommands } from './format';
 import { AGENT_NAME, STATUS_LABEL, agentClass, usageText } from './TaskList';
 
 const FINISHED = ['done', 'failed', 'cancelled', 'limited', 'interrupted'];
@@ -41,6 +41,52 @@ function FollowUp({ task }: { task: Task }) {
         </button>
       </div>
     </section>
+  );
+}
+
+/** 바뀐 파일 목록과 diff(설계 21절). 파일을 누르면 바뀐 줄을 보여 주고, 다시 누르면 닫는다 */
+function ChangedFiles({ task }: { task: Task }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const [diff, setDiff] = useState<{ file: string; text: string } | null>(null);
+  const [error, setError] = useState('');
+  const toggle = (f: string) => {
+    setError('');
+    if (open === f) return setOpen(null);
+    setOpen(f);
+    window.desk
+      .getDiff(task.id, f)
+      .then((text) => setDiff({ file: f, text }))
+      .catch((e) => setError(errorText(e)));
+  };
+  return (
+    <ul className="files">
+      {task.changedFiles!.map((f) => (
+        <li key={f}>
+          <button type="button" className="file-btn" aria-expanded={open === f} onClick={() => toggle(f)}>
+            <span aria-hidden>{open === f ? '▾' : '▸'}</span> {f}
+          </button>
+          {open === f && (
+            <div className="diff" role="region" aria-label={`${f} 바뀐 내용`}>
+              {error ? (
+                <p className="err" role="alert">
+                  {error}
+                </p>
+              ) : diff?.file !== f ? (
+                <p className="muted">불러오는 중…</p>
+              ) : diffLines(diff.text).length === 0 ? (
+                <p className="muted">바뀐 내용이 없습니다</p>
+              ) : (
+                diffLines(diff.text).map((l, i) => (
+                  <div key={i} className={`diff-${l.kind}`}>
+                    {l.text || ' '}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -84,6 +130,7 @@ export function TaskDetail({ task, events, draft }: { task: Task; events: AgentE
       </dl>
 
       {task.status === 'running' && <TaskProgress task={task} now={now} />}
+      <StepList events={events} status={task.status} />
       {task.error && <p className="notice err">{task.error}</p>}
 
       <div className="actions">
@@ -109,29 +156,14 @@ export function TaskDetail({ task, events, draft }: { task: Task; events: AgentE
 
       {task.status === 'consulting' && <ConsultView task={task} />}
 
-      {(events.length > 0 || draft) && (
-        <section className="log">
-          {events.map((e, i) => (
-            <EventRow key={i} e={e} />
-          ))}
-          {draft && <div className="log-row log-text draft">{draft}</div>}
-        </section>
-      )}
-
-      {FINISHED.includes(task.status) && task.agent && task.sessionId && task.worktree && <FollowUp task={task} />}
-
       {FINISHED.includes(task.status) && task.worktree && (
-        <section className="decision">
+        <section className="decision" aria-label="결과">
+          {/* 설계 21절: 끝난 작업은 긴 기록보다 결과 검토가 먼저 */}
+          <h3>결과</h3>
           <p>
             바뀐 파일 {task.changedFiles?.length ?? 0}개 <span className="muted">{task.diffStat}</span>
           </p>
-          {!!task.changedFiles?.length && (
-            <ul className="files">
-              {task.changedFiles.map((f) => (
-                <li key={f}>{f}</li>
-              ))}
-            </ul>
-          )}
+          {!!task.changedFiles?.length && <ChangedFiles task={task} />}
           {!!task.changedFiles?.length && task.branch && (
             <details className="merge-guide">
               <summary>원본 저장소에 반영하는 법</summary>
@@ -161,6 +193,18 @@ export function TaskDetail({ task, events, draft }: { task: Task; events: AgentE
           </div>
         </section>
       )}
+
+      {(events.length > 0 || draft) && (
+        <section className="log">
+          {events.map((e, i) => (
+            <EventRow key={i} e={e} />
+          ))}
+          {draft && <div className="log-row log-text draft">{draft}</div>}
+        </section>
+      )}
+
+      {FINISHED.includes(task.status) && task.agent && task.sessionId && task.worktree && <FollowUp task={task} />}
+
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { progressPercent } from '../../shared/progress';
 import type { AgentEvent, SetupItem, Task } from '../../shared/types';
-import { agoText, boardTasks, elapsedText, errorText } from './format';
+import { agoText, boardTasks, elapsedText, errorText, stepList } from './format';
 import { AGENT_NAME, STATUS_LABEL, agentClass } from './TaskList';
 import { Meter } from './UsagePanel';
 
@@ -56,6 +56,22 @@ export function TaskProgress({ task, now }: { task: Task; now: number }) {
   );
 }
 
+/** AI가 알려 준 단계 목록(설계 21절): 끝난 단계 ✓, 지금 단계 강조, 남은 단계는 흐리게 */
+export const StepList = memo(function StepList({ events, status }: { events: AgentEvent[]; status: Task['status'] }) {
+  const steps = stepList(events, status);
+  if (steps.length === 0) return null;
+  return (
+    <ol className="steps" aria-label="AI가 알려 준 단계">
+      {steps.map((s) => (
+        <li key={s.n} className={`step-${s.state}`} aria-current={s.state === 'active' ? 'step' : undefined}>
+          <span aria-hidden>{s.state === 'done' ? '✓' : s.state === 'active' ? '●' : '○'}</span>
+          {s.label ?? `${s.n}단계`}
+        </li>
+      ))}
+    </ol>
+  );
+});
+
 const TAIL = 40; // 칸 하나에 보이는 최근 기록 수
 const NO_EVENTS: AgentEvent[] = []; // 매번 새 빈 배열을 만들면 memo가 소용없다
 
@@ -109,6 +125,7 @@ function Panel(props: { task: Task; events?: AgentEvent[]; draft?: string; now: 
         </span>
       </header>
       {t.status === 'running' && <TaskProgress task={t} now={now} />}
+      {t.status !== 'consulting' && <StepList events={props.events ?? NO_EVENTS} status={t.status} />}
       {t.status === 'consulting' && <p className="muted">두 AI의 의견을 받는 중입니다</p>}
       {!live && (
         <p className={t.status === 'failed' ? 'err' : 'muted'}>
