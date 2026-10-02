@@ -42,8 +42,12 @@ function AgentBlock({ agent, usage, plan, extraUsage }: { agent: AgentId; usage?
           <p className="usage-note">
             {usage.windows.filter((w) => !isReset(w, now)).map((w) => resetText(w.resetsAt)).filter(Boolean)[0]}
           </p>
-          <p className={`usage-note${stale ? ' warn' : ''}`} title="agent-desk는 사용률을 직접 묻지 못해 마지막으로 받은 값을 보여 줍니다">
-            {agoText(usage.checkedAt, now)} 기준{stale && ' · 실제는 더 높을 수 있음'}
+          {/* 오래된 값이라는 경고는 보낼지 정하는 새 작업 창에서만 한다. 여기서는 언제 값인지만 알리고 막대를 흐리게 한다 */}
+          <p
+            className="usage-note"
+            title="agent-desk는 사용률을 직접 묻지 못해 마지막으로 받은 값을 보여 줍니다. 그 뒤에 쓴 양은 반영되지 않아 실제는 더 높을 수 있습니다. 정확한 값은 공식 도구의 /usage로 확인하세요"
+          >
+            {agoText(usage.checkedAt, now)} 기준
           </p>
         </>
       ) : (
