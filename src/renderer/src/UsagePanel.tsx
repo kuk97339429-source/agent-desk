@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { isReset, isStale } from '../../shared/guard';
 import type { AgentId, AgentUsage, Overview } from '../../shared/types';
 import { agoText, resetText } from './format';
@@ -55,11 +56,20 @@ function AgentBlock({ agent, usage, plan, extraUsage }: { agent: AgentId; usage?
   );
 }
 
-export function UsagePanel({ usage, accounts }: { usage: AgentUsage[]; accounts: Overview['accounts'] }) {
+export function UsagePanel({ usage, accounts, onRefresh }: { usage: AgentUsage[]; accounts: Overview['accounts']; onRefresh: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  // 이 PC의 사용량 기록 파일을 바로 다시 읽는다(서버에 묻는 것은 아님). 5초마다 자동으로도 읽는다
+  const refresh = () => {
+    setBusy(true);
+    void onRefresh().finally(() => setBusy(false));
+  };
   return (
     <section className="side-section">
       <div className="side-head">
         <h2>사용량</h2>
+        <button className="small" onClick={refresh} disabled={busy} title="사용량 기록을 지금 다시 읽습니다. 5초마다 자동으로도 읽습니다">
+          {busy ? '읽는 중…' : '새로고침'}
+        </button>
       </div>
       <div className="usage">
         {(['claude', 'codex'] as const).map((a) => (
