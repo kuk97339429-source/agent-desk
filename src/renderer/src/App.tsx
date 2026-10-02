@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AgentEvent, Overview, Task } from '../../shared/types';
 import { ExternalDetail, ExternalList, externalKey } from './External';
 import { NewTaskDialog } from './NewTaskDialog';
@@ -29,16 +29,6 @@ export function App() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [sideOpen, setSideOpen] = useState(false); // 좁은 창에서만 쓰는 사이드바 열림 상태
   const queue = useRef<Queued[]>([]);
-  // 사용량·요금제·외부 세션을 다시 읽는다. 5초마다 자동으로, 사용량 칸의 [새로고침]으로 바로.
-  // 값이 그대로면 이전 객체를 유지해 화면 전체를 다시 그리지 않는다
-  const refresh = useCallback(
-    () =>
-      window.desk
-        .overview()
-        .then((o) => setOverview((prev) => (JSON.stringify(prev) === JSON.stringify(o) ? prev : o)))
-        .catch(() => {}),
-    [],
-  );
   const menuBtn = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -61,6 +51,12 @@ export function App() {
       queue.current.push([id, e]);
       timer ??= setTimeout(flush, FLUSH_MS);
     });
+    // 값이 그대로면 이전 객체를 유지해 5초마다 화면 전체를 다시 그리지 않는다
+    const refresh = () =>
+      window.desk
+        .overview()
+        .then((o) => setOverview((prev) => (JSON.stringify(prev) === JSON.stringify(o) ? prev : o)))
+        .catch(() => {});
     refresh();
     const poll = setInterval(refresh, POLL_MS);
     return () => {
@@ -69,7 +65,7 @@ export function App() {
       clearInterval(poll);
       clearTimeout(timer);
     };
-  }, [refresh]);
+  }, []);
 
   // 좁은 창의 사이드바: Escape로 닫고 포커스를 메뉴 버튼으로 돌려준다
   useEffect(() => {
@@ -115,7 +111,7 @@ export function App() {
       {sideOpen && <div className="backdrop" onClick={() => setSideOpen(false)} />}
       {/* 좁은 창에서 접혀 있을 때는 키보드·화면 읽기에서 빠지게 한다(넓은 창에서는 menu-btn이 숨어 있어 sideOpen과 무관하게 보여야 함) */}
       <aside id="sidebar" className="sidebar" inert={narrow && !sideOpen}>
-        <UsagePanel usage={overview.usage} accounts={overview.accounts} onRefresh={refresh} />
+        <UsagePanel usage={overview.usage} accounts={overview.accounts} />
         <div className="side-head">
           <button className={selected === null ? 'primary' : ''} onClick={() => select(null)}>
             진행 현황 ({tasks.filter(isLive).length})
