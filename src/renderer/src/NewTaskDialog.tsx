@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { usageGuard } from '../../shared/guard';
 import type { AgentId, AgentUsage, Overview, Task } from '../../shared/types';
-import { errorText } from './format';
+import { errorText, recentStats } from './format';
 import { AGENT_NAME } from './TaskList';
 
 // 배포용: 처음에는 비워 두고 [찾기]로 고른 저장소를 기억한다
@@ -19,6 +19,7 @@ function loadRepo(): string {
 export function NewTaskDialog(props: {
   accounts: Overview['accounts'];
   usage: AgentUsage[];
+  tasks: Task[];
   onClose: () => void;
   onCreated: (t: Task) => void;
 }) {
@@ -104,6 +105,7 @@ export function NewTaskDialog(props: {
                   </option>
                 ))}
               </select>
+              <RecentLine stats={recentStats(props.tasks, a)} />
             </label>
           ))}
         </div>
@@ -169,5 +171,22 @@ export function NewTaskDialog(props: {
         </div>
       </div>
     </div>
+  );
+}
+
+/** 같은 AI로 끝낸 최근 작업의 평균(설계 20절). 구독 한도의 몇 %인지는 알 수 없어 시간·API 환산값으로 보여 준다 */
+function RecentLine({ stats }: { stats: ReturnType<typeof recentStats> }) {
+  if (!stats) return <span className="usage-note">아직 끝낸 작업이 없어 참고값이 없습니다</span>;
+  const size =
+    stats.avgCostUsd !== undefined
+      ? ` · API 환산 $${stats.avgCostUsd.toFixed(2)}`
+      : stats.avgTokens !== undefined
+        ? ` · 토큰 ${Math.round(stats.avgTokens / 1000)}k`
+        : '';
+  return (
+    <span className="usage-note">
+      최근 {stats.count}개 작업 평균 {stats.avgMinutes < 1 ? '1분 미만' : `${stats.avgMinutes}분`}
+      {size}
+    </span>
   );
 }

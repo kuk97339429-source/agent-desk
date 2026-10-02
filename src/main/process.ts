@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
 export interface RunResult {
@@ -9,6 +9,7 @@ export interface RunResult {
 
 export interface RunHandle {
   kill(): void;
+  pid?: number;
   done: Promise<RunResult>;
 }
 
@@ -56,5 +57,29 @@ export function runProcess(
     child.on('error', (err) => resolve({ code: null, stderr, spawnError: err.message }));
     child.on('close', (code) => resolve({ code, stderr }));
   });
-  return { kill: () => killTree(child.pid), done };
+  return { kill: () => killTree(child.pid), pid: child.pid, done };
+}
+
+/** 실행 중인 프로세스의 이름(예: claude.exe). 없거나 확인할 수 없으면 null */
+export function imageName(pid: number): string | null {
+  if (process.platform !== 'win32') return null; // ponytail: Windows 전용 앱이라 다른 OS는 확인하지 않는다
+  try {
+    const out = execFileSync('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], { encoding: 'utf8', windowsHide: true });
+    const m = out.match(/^"([^"]+)","(\d+)"/m);
+    return m && Number(m[2]) === pid ? m[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+const CLI_NAME = /^(claude|codex)(\.exe)?$/i;
+
+/**
+ * 앱이 강제 종료돼 남은 CLI를 끝낸다(설계 20절). PID는 다른 프로그램에 다시 쓰일 수 있어 이름이 claude·codex일 때만 끝낸다
+ */
+export function killOrphans(pids: number[], nameOf: (pid: number) => string | null = imageName, kill: (pid: number) => void = killTree): void {
+  for (const pid of pids) {
+    const name = nameOf(pid);
+    if (name && CLI_NAME.test(name)) kill(pid);
+  }
 }

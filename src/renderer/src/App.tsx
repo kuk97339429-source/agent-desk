@@ -135,6 +135,7 @@ export function App() {
         <NewTaskDialog
           accounts={overview.accounts}
           usage={overview.usage}
+          tasks={tasks}
           onClose={() => setCreating(false)}
           onCreated={(t) => {
             setCreating(false);

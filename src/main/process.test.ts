@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { tmpdir } from 'node:os';
-import { runProcess } from './process';
+import { imageName, killOrphans, runProcess } from './process';
 
 const node = process.execPath;
 
@@ -68,4 +68,17 @@ describe('runProcess', () => {
     const r = await h.done;
     expect(r.code).not.toBe(0);
   }, 10000);
+});
+
+describe('남은 CLI 정리 (설계 20절)', () => {
+  it('killOrphans: 이름이 claude·codex인 프로세스만 끝낸다(PID가 다른 프로그램에 재사용됐을 수 있음)', () => {
+    const killed: number[] = [];
+    const names: Record<number, string> = { 10: 'claude.exe', 11: 'notepad.exe', 12: 'codex.exe' };
+    killOrphans([10, 11, 12, 13], (pid) => names[pid] ?? null, (pid) => killed.push(pid));
+    expect(killed).toEqual([10, 12]);
+  });
+  it.runIf(process.platform === 'win32')('imageName: 실제 프로세스 이름, 없는 PID는 null', () => {
+    expect(imageName(process.pid)?.toLowerCase()).toBe('node.exe');
+    expect(imageName(999999)).toBeNull();
+  });
 });

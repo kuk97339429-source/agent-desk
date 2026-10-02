@@ -373,3 +373,16 @@ describe('promptFor', () => {
     expect(promptFor(t)).toBe('고쳐줘');
   });
 });
+
+describe('실행 중 PID 기록 (설계 20절)', () => {
+  it('실행 중에는 CLI 프로세스 번호를 저장하고, 끝나면 지운다', async () => {
+    newTask('p1');
+    const r = runner('setTimeout(() => {}, 60000)');
+    const run = r.start('p1');
+    await new Promise((res) => setTimeout(res, 1500));
+    expect(typeof store.get('p1')!.pid).toBe('number');
+    r.cancel('p1');
+    await run;
+    expect(store.get('p1')!.pid).toBeUndefined();
+  }, 15000);
+});

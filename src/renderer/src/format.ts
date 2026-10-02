@@ -1,4 +1,4 @@
-import type { AgentEvent, Task } from '../../shared/types';
+import type { AgentEvent, AgentId, Task } from '../../shared/types';
 
 // IPC로 던진 오류에는 Electron이 "Error invoking remote method 'x': Error: " 접두어를 붙인다
 export function errorText(e: unknown): string {
@@ -76,4 +76,24 @@ export function mergeCommands(task: Task): string {
     `git -C "${task.worktree}" commit -m "agent-desk: ${msg}"`,
     `git -C "${task.repo}" merge ${task.branch}`,
   ].join('\n');
+}
+
+const ENDED_OK = new Set<Task['status']>(['done', 'limited', 'failed']);
+const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : undefined);
+
+/**
+ * 보내기 전 참고값(설계 20절): 같은 AI로 끝난 최근 n개 작업(목록은 최신순)의 평균 시간과 사용량.
+ * ponytail: 작업 한 건이 구독 한도의 몇 %를 썼는지는 알 수 없어(Claude는 실행 시작 때만 사용률을 줌) 시간·API 환산값으로 대신한다
+ */
+export function recentStats(tasks: Task[], agent: AgentId, n = 10) {
+  const recent = tasks.filter((t) => t.agent === agent && ENDED_OK.has(t.status) && t.endedAt).slice(0, n);
+  if (recent.length === 0) return null;
+  const cost = avg(recent.flatMap((t) => (t.usage.costUsd !== undefined ? [t.usage.costUsd] : [])));
+  const tokens = avg(recent.flatMap((t) => (t.usage.tokens !== undefined ? [t.usage.tokens] : [])));
+  return {
+    count: recent.length,
+    avgMinutes: Math.round(avg(recent.map((t) => (Date.parse(t.endedAt!) - Date.parse(t.createdAt)) / 60000))!),
+    avgCostUsd: cost === undefined ? undefined : Math.round(cost * 100) / 100,
+    avgTokens: tokens === undefined ? undefined : Math.round(tokens),
+  };
 }

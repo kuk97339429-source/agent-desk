@@ -247,8 +247,12 @@ export class TaskRunner {
     });
     entry.kill = handle.kill;
     if (entry.stop) handle.kill(); // 프로세스가 뜨기 직전에 중지된 경우
+    // 앱이 강제 종료돼도 다음 실행 때 남은 CLI를 찾아 끝낼 수 있게 프로세스 번호를 저장한다(설계 20절)
+    task.pid = handle.pid;
+    this.publish(task);
     const res = await handle.done;
     this.running.delete(task.id);
+    task.pid = undefined;
 
     const final: Outcome = entry.stop
       ? { status: entry.stop }

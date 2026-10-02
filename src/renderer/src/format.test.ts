@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentEvent, Task } from '../../shared/types';
-import { agoText, applyDrafts, applyEvents, boardTasks, elapsedText, errorText, mergeCommands, resetText } from './format';
+import { agoText, applyDrafts, applyEvents, boardTasks, elapsedText, errorText, mergeCommands, recentStats, resetText } from './format';
 
 describe('agoText', () => {
   const now = Date.parse('2026-10-02T10:00:00Z');
@@ -105,5 +105,24 @@ describe('mergeCommands', () => {
       `git -C "D:/.tm-worktrees/my repo/a1" commit -m "agent-desk: 로그인 '버튼' '고치기"`,
       'git -C "D:/my repo" merge tm/a1',
     ]);
+  });
+});
+
+describe('recentStats (설계 20절, 보내기 전 참고값)', () => {
+  const t = (id: string, agent: 'claude' | 'codex', status: Task['status'], min: number, usage: Task['usage']): Task => ({
+    id, repo: 'r', prompt: id, agent, status, usage,
+    createdAt: '2026-10-02T00:00:00Z', endedAt: new Date(Date.parse('2026-10-02T00:00:00Z') + min * 60000).toISOString(),
+  });
+  it('끝난 같은 AI 작업 최근 n개의 평균 시간과 사용량', () => {
+    const tasks = [
+      t('a', 'claude', 'done', 4, { costUsd: 0.2 }),
+      t('b', 'claude', 'limited', 10, { costUsd: 0.6 }),
+      t('c', 'codex', 'done', 2, { tokens: 5000 }),
+      t('d', 'claude', 'running', 0, {}),
+      t('e', 'claude', 'done', 1, { costUsd: 0.1 }),
+    ];
+    expect(recentStats(tasks, 'claude', 2)).toEqual({ count: 2, avgMinutes: 7, avgCostUsd: 0.4, avgTokens: undefined });
+    expect(recentStats(tasks, 'codex')).toEqual({ count: 1, avgMinutes: 2, avgCostUsd: undefined, avgTokens: 5000 });
+    expect(recentStats([], 'claude')).toBeNull();
   });
 });

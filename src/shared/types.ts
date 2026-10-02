@@ -64,6 +64,8 @@ export interface Task {
   consult?: { opinions: Partial<Record<AgentId, OpinionResult>>; decision?: Decision; error?: string };
   createdAt: string;
   endedAt?: string;
+  /** 실행 중인 CLI 프로세스 번호(설계 20절). 끝나면 지운다 */
+  pid?: number;
 }
 
 /** 다른 곳(Claude 데스크톱·VS Code·Codex 앱)에서 연 세션. 읽기 전용 */
@@ -104,6 +106,15 @@ export interface Overview {
   accounts: Record<AgentId, { plan: string | null; models: ModelOption[]; extraUsage: boolean | null }>;
 }
 
+/** 첫 실행 점검 항목(설계 20절). optional이면 없어도 한쪽 AI로 쓸 수 있다 */
+export interface SetupItem {
+  key: string;
+  label: string;
+  ok: boolean;
+  optional?: boolean;
+  hint?: string;
+}
+
 export interface NewTaskInput {
   repo: string;
   prompt: string;
@@ -127,6 +138,8 @@ export interface DeskApi {
   checkRepo(repo: string): Promise<{ root: string | null; dirty: boolean }>;
   paidKeys(): Promise<string[]>;
   overview(): Promise<Overview>;
+  /** 첫 실행 점검(설계 20절) */
+  checkSetup(): Promise<SetupItem[]>;
   /** 공식 도구를 새 터미널 창에서 직접 연다. sessionId가 있으면 그 세션을 이어서(설계 14절) */
   openSession(agent: AgentId, cwd: string, sessionId?: string): Promise<void>;
   onTaskUpdate(cb: (task: Task) => void): () => void;

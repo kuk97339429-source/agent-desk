@@ -38,6 +38,7 @@ export class TaskStore {
       if (t.status === 'running') {
         t.status = 'interrupted';
         t.endedAt = now;
+        t.pid = undefined;
         changed = t;
       } else if (t.status === 'consulting' && !t.consult?.decision) {
         // 상의는 세션이 없어 이어갈 수 없다. 상의 화면에 남겨 두고 직접 고르거나 취소하게 한다

@@ -16,6 +16,7 @@ const api: DeskApi = {
   checkRepo: call('checkRepo') as DeskApi['checkRepo'],
   paidKeys: call('paidKeys') as DeskApi['paidKeys'],
   overview: call('overview') as DeskApi['overview'],
+  checkSetup: call('checkSetup') as DeskApi['checkSetup'],
   openSession: call('openSession') as DeskApi['openSession'],
   onTaskUpdate: (cb) => {
     const h = (_e: unknown, t: Task) => cb(t);

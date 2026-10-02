@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { progressPercent } from '../../shared/progress';
-import type { AgentEvent, Task } from '../../shared/types';
+import type { AgentEvent, SetupItem, Task } from '../../shared/types';
 import { agoText, boardTasks, elapsedText, errorText } from './format';
 import { AGENT_NAME, STATUS_LABEL, agentClass } from './TaskList';
 import { Meter } from './UsagePanel';
@@ -131,6 +131,33 @@ function Panel(props: { task: Task; events?: AgentEvent[]; draft?: string; now: 
   );
 }
 
+/** 첫 실행 점검(설계 20절). 작업을 아직 안 보냈거나, 꼭 필요한 항목이 빠졌을 때만 보인다 */
+function SetupChecklist({ firstRun }: { firstRun: boolean }) {
+  const [items, setItems] = useState<SetupItem[] | null>(null);
+  const load = () => window.desk.checkSetup().then(setItems).catch(() => setItems(null));
+  useEffect(() => {
+    void load();
+  }, []);
+  if (!items) return null;
+  const missing = items.some((i) => !i.ok && !i.optional);
+  if (!firstRun && !missing) return null;
+  return (
+    <section className="setup" aria-label="시작 전 점검">
+      <h3>{missing ? '시작하기 전에 필요한 것이 있습니다' : '시작 전 점검'}</h3>
+      <ul>
+        {items.map((i) => (
+          <li key={i.key} className={i.ok ? 'ok' : i.optional ? 'opt' : 'bad'}>
+            <span aria-hidden>{i.ok ? '✓' : i.optional ? '–' : '✗'}</span> {i.label}
+            {i.ok ? ' 확인됨' : i.optional ? ' 없음(선택)' : ' 필요'}
+            {i.hint && (!i.ok || i.key === 'claude-login') && <span className="muted"> · {i.hint}</span>}
+          </li>
+        ))}
+      </ul>
+      <button onClick={() => void load()}>다시 확인</button>
+    </section>
+  );
+}
+
 export function ProgressView(props: {
   tasks: Task[];
   events: Record<string, AgentEvent[]>;
@@ -143,6 +170,7 @@ export function ProgressView(props: {
   return (
     <div className="progress-view">
       <h2 className="task-title agent-none">진행 현황</h2>
+      <SetupChecklist firstRun={props.tasks.length === 0} />
       {board.length === 0 && <p className="muted">지금 실행 중인 작업이 없습니다. 왼쪽에서 새 작업을 보내세요.</p>}
       <div className="panels">
         {board.map((t) => (

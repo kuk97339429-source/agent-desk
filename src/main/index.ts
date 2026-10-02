@@ -14,6 +14,8 @@ import { claudeAdapter } from './claude';
 import { codexAdapter } from './codex';
 import { Consultant } from './consultant';
 import { type Emitter, TaskRunner } from './runner';
+import { killOrphans } from './process';
+import { checkSetup } from './setup';
 import { TaskStore } from './taskStore';
 import { isDirty, repoRoot } from './worktree';
 
@@ -84,6 +86,8 @@ app.whenReady().then(() => {
   app.setAppUserModelId('io.github.agentdesk'); // Windows 알림에 앱 이름이 나오게(package.json build.appId와 같음)
   const dataDir = app.getPath('userData');
   const store = new TaskStore(join(dataDir, 'tasks.json'));
+  // 지난번에 강제 종료돼 남은 CLI를 먼저 끝낸다. 안 그러면 같은 작업 폴더에 계속 쓰다가 이어서 하기와 겹친다
+  killOrphans(store.list().flatMap((t) => (t.status === 'running' && t.pid ? [t.pid] : [])));
   store.markInterrupted();
   const adapters = { claude: claudeAdapter, codex: codexAdapter };
   // agent-desk가 Claude를 실행할 때만 Pro 사용률이 들어오므로 마지막 값을 파일에 남긴다(설계 11절)
@@ -195,6 +199,9 @@ app.whenReady().then(() => {
     const root = await repoRoot(repo);
     return { root, dirty: root ? await isDirty(root) : false };
   });
+  ipcMain.handle('checkSetup', () =>
+    checkSetup({ home: homedir(), pathEnv: process.env.PATH ?? '', codexExe: findCodexExe(), apiKey: !!process.env.ANTHROPIC_API_KEY }),
+  );
   ipcMain.handle('paidKeys', () => ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY'].filter((k) => process.env[k]));
   const home = homedir();
   const codexHome = join(home, '.codex');
