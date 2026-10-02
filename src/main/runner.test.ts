@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentEvent, Task } from '../shared/types';
 import type { Adapter, ParsedLine } from './adapter';
+import { PROGRESS_HINT } from '../shared/progress';
 import { TaskRunner, promptFor, resolveOutcome } from './runner';
 import { TaskStore } from './taskStore';
 
@@ -12,6 +13,7 @@ function fakeAdapter(script: string): Adapter {
   const parse = (line: string): ParsedLine => {
     const o = JSON.parse(line);
     if (o.t === 'text') return { events: [{ kind: 'text', text: o.v }] };
+    if (o.t === 'tool') return { events: [{ kind: 'tool', name: 'Write', detail: o.v }] };
     if (o.t === 'sid') return { events: [], sessionId: o.v, usageDelta: { tokens: 10 } };
     if (o.t === 'done') return { events: [], outcome: { status: 'done' } };
     if (o.t === 'limit') return { events: [], outcome: { status: 'limited', message: '한도', resetHint: '18:00 이후' } };
@@ -104,6 +106,30 @@ describe('TaskRunner', () => {
     newTask('l2');
     await runner("console.log(JSON.stringify({t:'limit'})); console.log(JSON.stringify({t:'fail'})); process.exit(1)").start('l2');
     expect(store.get('l2')).toMatchObject({ status: 'limited', resetHint: '18:00 이후' });
+  });
+
+  it('활동 정보: 단계 수, 마지막 도구 사용, AI 진행 표시를 기록한다', async () => {
+    newTask('a1');
+    const script =
+      "console.log(JSON.stringify({t:'text', v:'[진행 1/3] 읽기'}));" +
+      "console.log(JSON.stringify({t:'tool', v:'NOTES.md'}));" +
+      "console.log(JSON.stringify({t:'text', v:'[진행 2/3] 쓰기'}));" +
+      "console.log(JSON.stringify({t:'done'}))";
+    const updates: Task[] = [];
+    const r = new TaskRunner(
+      store,
+      { claude: fakeAdapter(script), codex: fakeAdapter(script) },
+      { update: (t) => updates.push(structuredClone(t)), event: () => {} },
+      join(base, 'data', 'logs'),
+    );
+    await r.start('a1');
+    const a = store.get('a1')!.activity!;
+    expect(a.steps).toBe(3);
+    expect(a.lastAction).toBe('Write NOTES.md');
+    expect(a.progress).toEqual({ step: 2, total: 3, label: '쓰기' });
+    expect(a.lastAt).toBeTruthy();
+    // 실행 중에도 화면으로 활동이 전해진다
+    expect(updates.some((t) => t.status === 'running' && t.activity?.steps === 1)).toBe(true);
   });
 
   it('고른 모델을 실행 인자로 넘기고, 출력의 실제 모델을 기록한다', async () => {
@@ -293,6 +319,10 @@ describe('promptFor', () => {
   it('합의된 계획이 있으면 지시문 뒤에 붙인다', () => {
     const t = { prompt: '고쳐줘', consult: { opinions: {}, decision: { assignee: 'codex', reason: 'r', plan: '1. 테스트' } } } as unknown as Task;
     expect(promptFor(t)).toBe('고쳐줘\n\n합의된 계획:\n1. 테스트');
+  });
+  it('진행 표시 요청이 켜져 있으면 지시문 끝에 붙인다', () => {
+    const t = { prompt: '고쳐줘', progressHint: true } as unknown as Task;
+    expect(promptFor(t)).toBe(`고쳐줘\n\n${PROGRESS_HINT}`);
   });
   it('계획이 비어 있으면 지시문만', () => {
     const t = { prompt: '고쳐줘', consult: { opinions: {}, decision: { assignee: 'codex', reason: 'r', plan: '' } } } as unknown as Task;

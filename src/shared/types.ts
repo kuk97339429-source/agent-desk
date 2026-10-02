@@ -49,6 +49,10 @@ export interface Task {
   models?: Partial<Record<AgentId, string>>;
   /** 실제로 쓴 모델 */
   model?: string;
+  /** 지시문 끝에 AI 진행 표시 요청을 붙일지(설계 15절 B) */
+  progressHint?: boolean;
+  /** 실행 중 활동 정보(설계 15절 A). progress는 AI가 스스로 알려 준 값 */
+  activity?: { steps: number; lastAction?: string; lastAt?: string; progress?: { step: number; total: number; label?: string } };
   changedFiles?: string[];
   diffStat?: string;
   error?: string;
@@ -101,6 +105,7 @@ export interface NewTaskInput {
   prompt: string;
   agent: AgentId | 'consult';
   models?: Partial<Record<AgentId, string>>;
+  progressHint?: boolean;
 }
 
 export interface DeskApi {

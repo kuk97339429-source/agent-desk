@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import type { AgentEvent, Overview, Task } from '../../shared/types';
 import { ExternalDetail, ExternalList, externalKey } from './External';
 import { NewTaskDialog } from './NewTaskDialog';
+import { ProgressView } from './ProgressView';
 import { TaskDetail } from './TaskDetail';
 import { TaskList } from './TaskList';
 import { UsagePanel } from './UsagePanel';
 
-type Selection = { kind: 'task'; id: string } | { kind: 'ext'; key: string } | null;
+type Selection = { kind: 'task'; id: string } | { kind: 'ext'; key: string } | null; // null = 진행 현황
 
 const EMPTY: Overview = {
   external: { claude: [], codex: [] },
@@ -56,6 +57,11 @@ export function App() {
     <div className="layout">
       <aside className="sidebar">
         <UsagePanel usage={overview.usage} accounts={overview.accounts} />
+        <div className="side-head">
+          <button className={selected === null ? 'primary' : ''} onClick={() => setSelected(null)}>
+            진행 현황 ({tasks.filter((t) => t.status === 'running' || t.status === 'consulting').length})
+          </button>
+        </div>
         <TaskList tasks={tasks} selected={task?.id ?? null} onSelect={selectTask} onNew={() => setCreating(true)} />
         <ExternalList
           external={overview.external}
@@ -66,7 +72,7 @@ export function App() {
       <main className="detail">
         {task && <TaskDetail key={task.id} task={task} events={events[task.id] ?? []} />}
         {ext && <ExternalDetail s={ext} />}
-        {!task && !ext && <p className="muted">왼쪽에서 작업이나 세션을 고르거나, 새 작업을 보내세요.</p>}
+        {!task && !ext && <ProgressView tasks={tasks} onSelect={selectTask} />}
       </main>
       {creating && (
         <NewTaskDialog

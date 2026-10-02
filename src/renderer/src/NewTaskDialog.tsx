@@ -25,6 +25,7 @@ export function NewTaskDialog(props: {
   const [repo, setRepo] = useState(loadRepo);
   const [agent, setAgent] = useState<AgentId | 'consult'>('consult');
   const [models, setModels] = useState<Partial<Record<AgentId, string>>>({});
+  const [progressHint, setProgressHint] = useState(true);
   // 상의 모드는 두 AI 모두, 직접 지정이면 그 AI만 모델을 고른다
   const modelAgents: AgentId[] = agent === 'consult' ? ['claude', 'codex'] : [agent];
   // 설계 14절: 80% 이상 경고, 90% 이상 보내기 막음(상의는 둘 다 막혔을 때만)
@@ -52,7 +53,7 @@ export function NewTaskDialog(props: {
     setError('');
     try {
       const chosen = Object.fromEntries(modelAgents.filter((a) => models[a]).map((a) => [a, models[a]]));
-      const t = await window.desk.createTask({ repo, prompt, agent, models: chosen });
+      const t = await window.desk.createTask({ repo, prompt, agent, models: chosen, progressHint });
       try {
         localStorage.setItem(REPO_KEY, repo);
       } catch {
@@ -111,6 +112,10 @@ export function NewTaskDialog(props: {
         <label className="field">
           맡길 작업
           <textarea rows={8} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={progressHint} onChange={(e) => setProgressHint(e.target.checked)} />
+          AI에게 진행 단계 표시 요청(진행 % 표시용, AI가 알려 주는 값이라 정확하지 않을 수 있음)
         </label>
 
         {paid.length > 0 && <p className="warn">{paid.join(', ')} 환경변수가 설정돼 있어 구독 대신 종량제로 결제됩니다.</p>}

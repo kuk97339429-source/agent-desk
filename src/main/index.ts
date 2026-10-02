@@ -109,6 +109,7 @@ app.whenReady().then(() => {
       prompt,
       agent: consult ? null : (input.agent as AgentId),
       models: input.models,
+      progressHint: input.progressHint !== false, // 기본 켬(설계 15절 B)
       status: consult ? 'consulting' : 'running',
       usage: {},
       createdAt: new Date().toISOString(),

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { AgentEvent, Task } from '../../shared/types';
 import { ConsultView } from './ConsultView';
+import { TaskProgress } from './ProgressView';
 import { elapsedText, errorText } from './format';
 import { AGENT_NAME, STATUS_LABEL, agentClass, usageText } from './TaskList';
 
@@ -23,7 +24,6 @@ const FINISHED = ['done', 'failed', 'cancelled', 'limited', 'interrupted'];
 export function TaskDetail({ task, events }: { task: Task; events: AgentEvent[] }) {
   const canResume = (task.status === 'limited' || task.status === 'interrupted') && !!task.sessionId && !!task.worktree;
   const act = (p: Promise<unknown>) => p.catch((err) => alert(errorText(err)));
-  const tools = events.filter((e) => e.kind === 'tool').length;
 
   return (
     <div className={`task-detail ${agentClass(task)}`}>
@@ -59,14 +59,7 @@ export function TaskDetail({ task, events }: { task: Task; events: AgentEvent[] 
         )}
       </dl>
 
-      {task.status === 'running' && (
-        <div className="run-meter">
-          <div className="meter busy" aria-label="실행 중">
-            <span />
-          </div>
-          <span className="muted">도구를 {tools}번 썼습니다. 금액은 작업이 끝나면 나옵니다.</span>
-        </div>
-      )}
+      {task.status === 'running' && <TaskProgress task={task} />}
       {task.error && <p className="notice err">{task.error}</p>}
 
       <div className="actions">

@@ -4,6 +4,14 @@ export function errorText(e: unknown): string {
   return msg.replace(/^Error invoking remote method '[^']*': (?:Error: )?/, '');
 }
 
+export function agoText(iso: string | undefined, now = Date.now()): string {
+  if (!iso) return '';
+  const sec = Math.max(0, Math.floor((now - Date.parse(iso)) / 1000));
+  if (sec < 10) return '방금';
+  if (sec < 60) return `${sec}초 전`;
+  return `${Math.floor(sec / 60)}분 전`;
+}
+
 export function resetText(resetsAt: string | undefined, now = Date.now()): string {
   if (!resetsAt) return '';
   const d = new Date(resetsAt);

@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { elapsedText, errorText, resetText } from './format';
+import { agoText, elapsedText, errorText, resetText } from './format';
+
+describe('agoText', () => {
+  const now = Date.parse('2026-10-02T10:00:00Z');
+  it('10초 미만은 방금, 그다음 초·분', () => {
+    expect(agoText('2026-10-02T09:59:55Z', now)).toBe('방금');
+    expect(agoText('2026-10-02T09:59:18Z', now)).toBe('42초 전');
+    expect(agoText('2026-10-02T09:57:00Z', now)).toBe('3분 전');
+  });
+  it('값이 없으면 빈 문자열', () => {
+    expect(agoText(undefined, now)).toBe('');
+  });
+});
 
 describe('resetText', () => {
   const now = new Date(2026, 9, 2, 10, 0).getTime(); // 로컬 10월 2일 10:00

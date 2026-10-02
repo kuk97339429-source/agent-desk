@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AgentEvent, AgentId, AgentUsage, Task } from '../shared/types';
+import { PROGRESS_HINT, parseProgress } from '../shared/progress';
 import type { Adapter, Outcome, ParsedLine } from './adapter';
 import { detectLimit } from './limit';
 import { runProcess } from './process';
@@ -17,7 +18,24 @@ export interface Emitter {
 
 export function promptFor(task: Task): string {
   const plan = task.consult?.decision?.plan?.trim();
-  return plan ? `${task.prompt}\n\n합의된 계획:\n${plan}` : task.prompt;
+  const base = plan ? `${task.prompt}\n\n합의된 계획:\n${plan}` : task.prompt;
+  return task.progressHint ? `${base}\n\n${PROGRESS_HINT}` : base;
+}
+
+// 설계 15절 A·B: 화면에 보낼 활동 정보를 갱신한다
+function trackActivity(task: Task, events: AgentEvent[]): boolean {
+  let changed = false;
+  for (const e of events) {
+    if (e.kind !== 'text' && e.kind !== 'tool') continue;
+    const a = (task.activity ??= { steps: 0 });
+    a.steps++;
+    a.lastAt = new Date().toISOString();
+    if (e.kind === 'tool') a.lastAction = `${e.name} ${e.detail}`.slice(0, 120);
+    const mark = e.kind === 'text' ? parseProgress(e.text) : null;
+    if (mark) a.progress = mark;
+    changed = true;
+  }
+  return changed;
 }
 
 const AUTH_RE = /not logged in|log ?in|unauthorized|authenticat|\b401\b/i;
@@ -179,6 +197,8 @@ export class TaskRunner {
         // 한도 신호 뒤의 일반 실패 줄이 원인을 덮지 않게 하되, 성공(done)은 그대로 인정한다
         if (p.outcome && (outcome?.status !== 'limited' || p.outcome.status === 'done')) outcome = p.outcome;
         for (const e of p.events) this.emit.event(task.id, e);
+        // 활동은 화면에만 바로 보내고, 파일 저장은 기존 시점(세션·사용량 변경, 종료)에 맡긴다
+        if (trackActivity(task, p.events) && !(p.sessionId || p.usageDelta)) this.emit.update(task);
         if (p.usageInfo) this.emit.usage?.(p.usageInfo);
         if (p.halt) handle.kill();
         if (p.sessionId || p.usageDelta) this.publish(task);
