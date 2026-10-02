@@ -109,9 +109,11 @@ select:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 
 /* 로그 */
 .log { display: grid; gap: 2px; }
-.log-row { padding: 6px 12px; box-shadow: inset 2px 0 var(--agent); }
+.log-row { padding: 6px 12px; box-shadow: inset 2px 0 var(--agent); overflow-wrap: anywhere; }
 .log-text { white-space: pre-wrap; }
-.log-tool { font: 13px/1.5 var(--mono); color: var(--muted); cursor: pointer; }
+/* 도구 줄은 키보드로 펼칠 수 있게 button이지만 기록 줄처럼 보이게 한다 */
+.log-tool { font: 13px/1.5 var(--mono); color: var(--muted); cursor: pointer; display: block; width: 100%; text-align: left; white-space: normal; background: none; border: 0; border-radius: 0; }
+.log-tool:hover { border: 0; background: var(--panel-2); }
 .log-tool b { color: var(--text); font-weight: 500; margin-right: 8px; }
 .log-raw { font: 12px/1.5 var(--mono); color: var(--muted); }
 .log-error { color: var(--danger); }
@@ -124,11 +126,11 @@ select:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 
 /* 진행 현황(설계 16절): 작업마다 칸 하나. 칸 최소 360px, 최대 3열 → 창이 좁아지면 2열·1열 */
 .progress-view { display: grid; gap: 16px; }
-.panels { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(max(360px, calc((100% - 24px) / 3)), 1fr)); }
+.panels { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, max(360px, calc((100% - 24px) / 3))), 1fr)); }
 .panel { background: var(--panel); box-shadow: inset 3px 0 var(--agent); padding: 12px 14px 12px 17px; display: grid; gap: 10px; align-content: start; min-width: 0; }
 .panel > * { min-width: 0; }
-.panel.dim { opacity: 0.6; }
-.panel.dim:hover, .panel.dim:focus-within { opacity: 1; }
+/* 끝난 작업: 투명도로 흐리게 하면 작은 글자 대비가 3:1까지 떨어진다. 배경만 바꿔 구분한다 */
+.panel.dim { background: transparent; box-shadow: inset 3px 0 var(--line), inset 0 0 0 1px var(--line); }
 .panel-head { display: grid; gap: 2px; }
 .panel-head .title { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .panel-head .muted { font-size: 12px; }
@@ -154,12 +156,12 @@ select:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 
 /* 새 작업 창 */
 .modal { position: fixed; inset: 0; background: rgba(5, 8, 12, 0.7); display: grid; place-items: center; }
-.dialog { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; width: min(600px, 92vw); display: grid; gap: 14px; }
+.dialog { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; width: min(600px, 92vw); max-height: calc(100vh - 32px); overflow-y: auto; display: grid; gap: 14px; }
 .dialog h3 { font-size: 16px; }
 .field { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
-.row { display: flex; gap: 8px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
 .row.end { justify-content: flex-end; }
-.agents { display: flex; gap: 8px; }
+.agents { display: flex; flex-wrap: wrap; gap: 8px; }
 .agents label { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; font-size: 13px; }
 .agents label.on { border-color: var(--agent); color: var(--text); box-shadow: inset 0 0 0 1px var(--agent); }
 .agents input { width: auto; accent-color: var(--text); }

@@ -8,13 +8,13 @@ export const STATUS_LABEL: Record<TaskStatus, string> = {
   running: '실행 중',
   done: '완료',
   failed: '실패',
-  cancelled: '중지됨',
+  cancelled: '내가 중지함',
   limited: '한도 도달',
-  interrupted: '중단됨',
+  interrupted: '앱 종료로 중단',
 };
 
 export function usageText(t: Task): string {
-  if (t.usage.costUsd !== undefined) return `누적 추정 $${t.usage.costUsd.toFixed(2)}`;
+  if (t.usage.costUsd !== undefined) return `API 환산 참고값 $${t.usage.costUsd.toFixed(2)} (구독은 청구 안 됨)`;
   if (t.usage.tokens !== undefined) return `토큰 ${Math.round(t.usage.tokens / 1000)}k`;
   return '';
 }

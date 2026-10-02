@@ -3,10 +3,10 @@ import type { AgentId, AgentUsage, Overview } from '../../shared/types';
 import { agoText, resetText } from './format';
 import { AGENT_NAME } from './TaskList';
 
-export function Meter({ percent }: { percent: number }) {
+export function Meter({ percent, label }: { percent: number; label?: string }) {
   const p = Math.max(0, Math.min(100, percent));
   return (
-    <div className={`meter${p >= 90 ? ' block' : p >= 80 ? ' over' : ''}`} role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={p}>
+    <div className={`meter${p >= 90 ? ' block' : p >= 80 ? ' over' : ''}`} role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={p}>
       <span style={{ width: `${p}%` }} />
     </div>
   );
@@ -33,7 +33,7 @@ function AgentBlock({ agent, usage, plan, extraUsage }: { agent: AgentId; usage?
             ) : (
               <div key={w.label} className="usage-row" title={resetText(w.resetsAt)}>
                 <span className="muted">{w.label}</span>
-                <Meter percent={w.percent} />
+                <Meter percent={w.percent} label={`${AGENT_NAME[agent]} ${w.label} 사용률`} />
                 <span className={`pct${w.percent >= 90 ? ' err' : w.percent >= 80 ? ' warn' : ''}`}>{w.percent}%</span>
               </div>
             ),

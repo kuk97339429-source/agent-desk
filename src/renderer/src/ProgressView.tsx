@@ -1,25 +1,26 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { progressPercent } from '../../shared/progress';
 import type { AgentEvent, Task } from '../../shared/types';
 import { agoText, boardTasks, elapsedText, errorText } from './format';
 import { AGENT_NAME, STATUS_LABEL, agentClass } from './TaskList';
 import { Meter } from './UsagePanel';
 
-export function EventRow({ e }: { e: AgentEvent }) {
+// 기록 줄은 내용이 바뀌지 않으므로 memo로 다시 그리지 않는다
+export const EventRow = memo(function EventRow({ e }: { e: AgentEvent }) {
   const [open, setOpen] = useState(false);
   if (e.kind === 'text') return <div className="log-row log-text">{e.text}</div>;
   if (e.kind === 'tool')
     return (
-      <div className="log-row log-tool" onClick={() => setOpen(!open)} title="눌러서 전체 보기">
+      <button type="button" className="log-row log-tool" aria-expanded={open} onClick={() => setOpen(!open)} title="눌러서 전체 보기">
         <b>{e.name}</b>
         {open ? e.detail : e.detail.slice(0, 100)}
-      </div>
+      </button>
     );
   if (e.kind === 'error') return <div className="log-row log-error">{e.message}</div>;
   if (e.kind === 'delta') return null;
   if (e.kind === 'user') return <div className="log-row log-user">나: {e.text}</div>;
   return <div className="log-row log-raw">{e.line}</div>;
-}
+});
 
 /** 걸린 시간·마지막 움직임 글자를 1초마다 다시 그린다(설계 16절) */
 export function useNow(ms = 1000): number {
@@ -31,17 +32,16 @@ export function useNow(ms = 1000): number {
   return now;
 }
 
-/** 실행 중 작업 하나의 진행 표시(설계 15절). AI가 알려 준 단계가 있으면 %, 없으면 움직이는 막대 */
-export function TaskProgress({ task }: { task: Task }) {
-  const now = useNow();
+/** 실행 중 작업 하나의 진행 표시(설계 15절). AI가 알려 준 단계가 있으면 %, 없으면 움직이는 막대. now는 부모의 시계 하나를 같이 쓴다 */
+export function TaskProgress({ task, now }: { task: Task; now: number }) {
   const a = task.activity;
   const p = a?.progress;
   return (
     <div className="run-meter">
       {p ? (
-        <Meter percent={progressPercent(p, task.status)} />
+        <Meter percent={progressPercent(p, task.status)} label="AI가 알려 준 진행률" />
       ) : (
-        <div className="meter busy" aria-label="진행 중">
+        <div className="meter busy" role="progressbar" aria-label="진행 중(단계 정보 없음)">
           <span />
         </div>
       )}
@@ -57,9 +57,10 @@ export function TaskProgress({ task }: { task: Task }) {
 }
 
 const TAIL = 40; // 칸 하나에 보이는 최근 기록 수
+const NO_EVENTS: AgentEvent[] = []; // 매번 새 빈 배열을 만들면 memo가 소용없다
 
-/** 기록 끝을 따라가되, 사용자가 위로 올려 읽는 중이면 그대로 둔다 */
-function LiveLog({ events, draft }: { events: AgentEvent[]; draft?: string }) {
+/** 기록 끝을 따라가되, 사용자가 위로 올려 읽는 중이면 그대로 둔다. 1초 시계와 무관하게 기록이 바뀔 때만 다시 그린다 */
+const LiveLog = memo(function LiveLog({ events, draft, title }: { events: AgentEvent[]; draft?: string; title: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   useEffect(() => {
@@ -70,6 +71,9 @@ function LiveLog({ events, draft }: { events: AgentEvent[]; draft?: string }) {
     <div
       className="log panel-log"
       ref={ref}
+      role="log"
+      aria-label={`${title} 기록`}
+      tabIndex={0}
       onScroll={(e) => {
         const el = e.currentTarget;
         stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
@@ -82,10 +86,11 @@ function LiveLog({ events, draft }: { events: AgentEvent[]; draft?: string }) {
       {draft && <div className="log-row log-text draft">{draft}</div>}
     </div>
   );
-}
+});
 
 function Panel(props: { task: Task; events?: AgentEvent[]; draft?: string; now: number; onOpen: () => void; onLoad: () => void }) {
   const { task: t, now } = props;
+  const title = t.prompt.split('\n')[0];
   const live = t.status === 'running' || t.status === 'consulting';
   // 처음 띄울 때 한 번만 지난 기록을 읽는다
   useEffect(() => {
@@ -103,7 +108,7 @@ function Panel(props: { task: Task; events?: AgentEvent[]; draft?: string; now: 
           {elapsedText(t.createdAt, t.endedAt, now)}
         </span>
       </header>
-      {t.status === 'running' && <TaskProgress task={t} />}
+      {t.status === 'running' && <TaskProgress task={t} now={now} />}
       {t.status === 'consulting' && <p className="muted">두 AI의 의견을 받는 중입니다</p>}
       {!live && (
         <p className={t.status === 'failed' ? 'err' : 'muted'}>
@@ -111,14 +116,16 @@ function Panel(props: { task: Task; events?: AgentEvent[]; draft?: string; now: 
           {t.error && ` · ${t.error.split('\n')[0]}`}
         </p>
       )}
-      {t.status !== 'consulting' && <LiveLog events={props.events ?? []} draft={props.draft} />}
+      {t.status !== 'consulting' && <LiveLog events={props.events ?? NO_EVENTS} draft={props.draft} title={title} />}
       <div className="actions">
         {t.status === 'running' && (
-          <button className="danger" onClick={() => window.desk.cancelTask(t.id).catch((e) => alert(errorText(e)))}>
+          <button className="danger" aria-label={`${title} 중지`} onClick={() => window.desk.cancelTask(t.id).catch((e) => alert(errorText(e)))}>
             중지
           </button>
         )}
-        <button onClick={props.onOpen}>상세 보기</button>
+        <button aria-label={`${title} 상세 보기`} onClick={props.onOpen}>
+          상세 보기
+        </button>
       </div>
     </article>
   );

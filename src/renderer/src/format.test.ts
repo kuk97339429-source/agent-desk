@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Task } from '../../shared/types';
-import { agoText, boardTasks, elapsedText, errorText, resetText } from './format';
+import type { AgentEvent, Task } from '../../shared/types';
+import { agoText, applyDrafts, applyEvents, boardTasks, elapsedText, errorText, mergeCommands, resetText } from './format';
 
 describe('agoText', () => {
   const now = Date.parse('2026-10-02T10:00:00Z');
@@ -68,5 +68,42 @@ describe('boardTasks', () => {
       t('limit', 'limited', '2026-10-02T09:59:00Z'),
     ];
     expect(boardTasks(tasks, now).map((x) => x.id)).toEqual(['run', 'consult', 'recent', 'limit']);
+  });
+});
+
+describe('applyQueued (설계 16절: 들어온 이벤트를 모아 한 번에 반영)', () => {
+  const q: [string, AgentEvent][] = [
+    ['a', { kind: 'delta', text: '안녕' }],
+    ['a', { kind: 'delta', text: '하세요' }],
+    ['b', { kind: 'tool', name: 'Read', detail: 'x.ts' }],
+    ['a', { kind: 'text', text: '안녕하세요' }],
+    ['a', { kind: 'delta', text: '다음' }],
+  ];
+  it('글 조각은 이어 붙이고 완성된 글이 오면 비운 뒤 다시 모은다', () => {
+    expect(applyDrafts({}, q)).toEqual({ a: '다음' });
+  });
+  it('조각이 아닌 이벤트만 작업별로 순서대로 붙인다', () => {
+    expect(applyEvents({}, q, 100)).toEqual({ a: [{ kind: 'text', text: '안녕하세요' }], b: [{ kind: 'tool', name: 'Read', detail: 'x.ts' }] });
+  });
+  it('작업마다 최근 max개만 남긴다', () => {
+    const many: [string, AgentEvent][] = Array.from({ length: 5 }, (_, i) => ['a', { kind: 'text', text: String(i) }]);
+    expect(applyEvents({ a: [{ kind: 'text', text: 'old' }] }, many, 3).a.map((e) => (e as { text: string }).text)).toEqual(['2', '3', '4']);
+  });
+  it('바뀐 것이 없으면 같은 객체를 돌려준다(다시 그리지 않게)', () => {
+    const prev = { a: [] };
+    expect(applyEvents(prev, [['a', { kind: 'delta', text: 'x' }]], 10)).toBe(prev);
+    const d = { a: 'x' };
+    expect(applyDrafts(d, [['b', { kind: 'tool', name: 'R', detail: '' }]])).toBe(d);
+  });
+});
+
+describe('mergeCommands', () => {
+  it('작업 폴더에서 커밋한 뒤 원본에서 작업 브랜치를 합치는 세 줄, 메시지의 따옴표·$는 바꾼다', () => {
+    const t = { id: 'a1', repo: 'D:/my repo', worktree: 'D:/.tm-worktrees/my repo/a1', branch: 'tm/a1', prompt: '로그인 "버튼" $고치기\n자세한 설명', agent: 'claude', status: 'done', usage: {}, createdAt: '' } as Task;
+    expect(mergeCommands(t).split('\n')).toEqual([
+      'git -C "D:/.tm-worktrees/my repo/a1" add -A',
+      `git -C "D:/.tm-worktrees/my repo/a1" commit -m "agent-desk: 로그인 '버튼' '고치기"`,
+      'git -C "D:/my repo" merge tm/a1',
+    ]);
   });
 });

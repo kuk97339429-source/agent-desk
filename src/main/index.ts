@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron';
-import type { AgentEvent, AgentId, AgentUsage, NewTaskInput, Overview, Task } from '../shared/types';
+import { BrowserWindow, Notification, app, dialog, ipcMain, shell } from 'electron';
+import type { AgentEvent, AgentId, AgentUsage, NewTaskInput, Overview, Task, TaskStatus } from '../shared/types';
 import { readClaudeSessions, readCodexSessions } from './external';
 import { spawn } from 'node:child_process';
 import { readClaudeAccount, readCodexAccount } from './account';
@@ -51,6 +51,23 @@ const safe = <T>(read: () => T): T | null => {
   }
 };
 
+// 작업이 끝났을 때 앱이 앞에 없으면 알림을 띄운다(지켜보지 않아도 되게)
+const ENDED: Partial<Record<TaskStatus, string>> = { done: '완료', failed: '실패', limited: '한도 도달', interrupted: '중단' };
+const lastStatus = new Map<string, TaskStatus>();
+function notifyIfEnded(t: Task): void {
+  const prev = lastStatus.get(t.id);
+  lastStatus.set(t.id, t.status);
+  const label = ENDED[t.status];
+  if ((prev !== 'running' && prev !== 'consulting') || !label) return;
+  if (win?.isFocused() || !Notification.isSupported()) return;
+  const n = new Notification({ title: `작업 ${label}`, body: t.prompt.split('\n')[0].slice(0, 80) });
+  n.on('click', () => {
+    win?.show();
+    win?.focus();
+  });
+  n.show();
+}
+
 const showFailure = (title: string) => (err: Error) => dialog.showErrorBox(title, err.message);
 
 // 두 번 실행하면 두 앱이 tasks.json을 서로 덮어쓰고, 서로의 실행 중 작업을 중단으로 표시한다
@@ -64,6 +81,7 @@ app.on('second-instance', () => {
 });
 
 app.whenReady().then(() => {
+  app.setAppUserModelId('io.github.agentdesk'); // Windows 알림에 앱 이름이 나오게(package.json build.appId와 같음)
   const dataDir = app.getPath('userData');
   const store = new TaskStore(join(dataDir, 'tasks.json'));
   store.markInterrupted();
@@ -78,7 +96,10 @@ app.whenReady().then(() => {
     // 아직 기록 없음
   }
   const emitter: Emitter = {
-    update: (t: Task) => send('task:update', t),
+    update: (t: Task) => {
+      send('task:update', t);
+      notifyIfEnded(t);
+    },
     event: (id: string, e: AgentEvent) => send('task:event', id, e),
     usage: (u: AgentUsage) => {
       claudeUsage = u;

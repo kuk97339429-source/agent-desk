@@ -71,9 +71,9 @@ export function NewTaskDialog(props: {
   };
 
   return (
-    <div className="modal">
-      <div className="dialog">
-        <h3>새 작업</h3>
+    <div className="modal" onKeyDown={(e) => e.key === 'Escape' && props.onClose()}>
+      <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="new-task-title">
+        <h3 id="new-task-title">새 작업</h3>
         <label className="field">
           저장소
           <div className="row">
@@ -88,7 +88,7 @@ export function NewTaskDialog(props: {
           {(['consult', 'claude', 'codex'] as const).map((a) => (
             <label key={a} className={`agent-${a === 'consult' ? 'none' : a}${agent === a ? ' on' : ''}`}>
               <input type="radio" name="agent" checked={agent === a} onChange={() => setAgent(a)} />
-              {a === 'consult' ? '상의해서 정하기' : a === 'claude' ? 'Claude' : 'Codex'}
+              {a === 'consult' ? '두 AI에게 먼저 묻기' : a === 'claude' ? 'Claude' : 'Codex'}
             </label>
           ))}
         </div>
@@ -107,7 +107,12 @@ export function NewTaskDialog(props: {
             </label>
           ))}
         </div>
-        {agent === 'consult' && <p className="muted">의견을 물을 때는 기본 설정 모델을 쓰고, 고른 모델은 실제 작업에 씁니다.</p>}
+        {agent === 'consult' && (
+          <p className="muted">
+            두 AI에게 읽기 전용으로 의견을 물은 뒤 담당을 정합니다. 의견을 묻는 데도 두 AI의 사용량이 조금씩 듭니다. 의견을 물을 때는 기본 설정 모델을
+            쓰고, 고른 모델은 실제 작업에 씁니다.
+          </p>
+        )}
 
         <label className="field">
           맡길 작업
@@ -128,7 +133,7 @@ export function NewTaskDialog(props: {
                 ? agent === 'consult' && !sendBlocked
                   ? `${AGENT_NAME[g.agent]}는 빼고 다른 AI에게 맡깁니다.`
                   : '여기서는 보내지 않습니다. 직접 세션을 열어 관리하세요.'
-                : '보낼 수는 있지만 한도에 가깝습니다.'}
+                : '보낼 수는 있지만 한도에 가깝습니다. 중간에 한도에 닿으면 멈추고, 초기화 뒤 [이어서 하기]로 이어 갈 수 있습니다.'}
             </p>
           ))}
         {guards.some((g) => g.stale) && (
@@ -145,7 +150,11 @@ export function NewTaskDialog(props: {
             {extraOn.map((a) => AGENT_NAME[a]).join(', ')}에 추가 사용이 켜져 있어 한도를 넘으면 실제 요금이 청구될 수 있습니다. Claude는 추가 요금 구간에 들어가는 즉시 멈춥니다.
           </p>
         )}
-        {error && <p className="err">{error}</p>}
+        {error && (
+          <p className="err" role="alert">
+            {error}
+          </p>
+        )}
 
         <div className="row end">
           {blocked.map((g) => (

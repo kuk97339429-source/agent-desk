@@ -1,4 +1,4 @@
-import type { Task } from '../../shared/types';
+import type { AgentEvent, Task } from '../../shared/types';
 
 // IPC로 던진 오류에는 Electron이 "Error invoking remote method 'x': Error: " 접두어를 붙인다
 export function errorText(e: unknown): string {
@@ -39,4 +39,41 @@ const isLive = (t: Task) => t.status === 'running' || t.status === 'consulting';
 export function boardTasks(tasks: Task[], now = Date.now()): Task[] {
   const recent = tasks.filter((t) => !isLive(t) && t.endedAt && now - Date.parse(t.endedAt) < RECENT_MS);
   return [...tasks.filter(isLive), ...recent];
+}
+
+export type Queued = [id: string, e: AgentEvent];
+
+/** 쓰는 중인 글: 조각은 이어 붙이고, 완성된 글(text)이 오면 비운다. 바뀐 게 없으면 같은 객체 */
+export function applyDrafts(prev: Record<string, string>, queue: Queued[]): Record<string, string> {
+  let next = prev;
+  for (const [id, e] of queue) {
+    if (e.kind === 'delta') next = { ...next, [id]: (next[id] ?? '') + e.text };
+    else if (e.kind === 'text' && id in next) {
+      const { [id]: _, ...rest } = next;
+      next = rest;
+    }
+  }
+  return next;
+}
+
+/** 기록: 조각을 뺀 이벤트를 작업별로 붙이고 최근 max개만 남긴다(메모리가 끝없이 늘지 않게). 바뀐 게 없으면 같은 객체 */
+export function applyEvents(prev: Record<string, AgentEvent[]>, queue: Queued[], max: number): Record<string, AgentEvent[]> {
+  const added: Record<string, AgentEvent[]> = {};
+  for (const [id, e] of queue) if (e.kind !== 'delta') (added[id] ??= []).push(e);
+  const ids = Object.keys(added);
+  if (ids.length === 0) return prev;
+  const next = { ...prev };
+  for (const id of ids) next[id] = [...(prev[id] ?? []), ...added[id]].slice(-max);
+  return next;
+}
+
+/** 작업 폴더의 결과를 커밋하고 원본 저장소에 합치는 명령(사용자가 직접 실행) */
+export function mergeCommands(task: Task): string {
+  // 커밋 메시지는 따옴표 안에 들어가므로 따옴표와 줄바꿈을 뺀다
+  const msg = task.prompt.split('\n')[0].replace(/["`$\\]/g, "'").slice(0, 60);
+  return [
+    `git -C "${task.worktree}" add -A`,
+    `git -C "${task.worktree}" commit -m "agent-desk: ${msg}"`,
+    `git -C "${task.repo}" merge ${task.branch}`,
+  ].join('\n');
 }

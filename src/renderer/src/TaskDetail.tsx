@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import type { AgentEvent, Task } from '../../shared/types';
 import { ConsultView } from './ConsultView';
-import { EventRow, TaskProgress } from './ProgressView';
-import { elapsedText, errorText } from './format';
+import { EventRow, TaskProgress, useNow } from './ProgressView';
+import { elapsedText, errorText, mergeCommands } from './format';
 import { AGENT_NAME, STATUS_LABEL, agentClass, usageText } from './TaskList';
 
 const FINISHED = ['done', 'failed', 'cancelled', 'limited', 'interrupted'];
@@ -30,7 +30,11 @@ function FollowUp({ task }: { task: Task }) {
           placeholder="예: 방금 만든 함수에 테스트도 추가해줘"
         />
       </label>
-      {error && <p className="err">{error}</p>}
+      {error && (
+        <p className="err" role="alert">
+          {error}
+        </p>
+      )}
       <div className="row end">
         <button className="primary" disabled={!text.trim()} onClick={send}>
           보내기
@@ -43,6 +47,7 @@ function FollowUp({ task }: { task: Task }) {
 export function TaskDetail({ task, events, draft }: { task: Task; events: AgentEvent[]; draft?: string }) {
   const canResume = (task.status === 'limited' || task.status === 'interrupted') && !!task.sessionId && !!task.worktree;
   const act = (p: Promise<unknown>) => p.catch((err) => alert(errorText(err)));
+  const now = useNow();
 
   return (
     <div className={`task-detail ${agentClass(task)}`}>
@@ -69,7 +74,7 @@ export function TaskDetail({ task, events, draft }: { task: Task; events: AgentE
           </>
         )}
         <dt>걸린 시간</dt>
-        <dd>{elapsedText(task.createdAt, task.endedAt)}</dd>
+        <dd>{elapsedText(task.createdAt, task.endedAt, now)}</dd>
         {usageText(task) && (
           <>
             <dt>사용량</dt>
@@ -78,7 +83,7 @@ export function TaskDetail({ task, events, draft }: { task: Task; events: AgentE
         )}
       </dl>
 
-      {task.status === 'running' && <TaskProgress task={task} />}
+      {task.status === 'running' && <TaskProgress task={task} now={now} />}
       {task.error && <p className="notice err">{task.error}</p>}
 
       <div className="actions">
@@ -87,7 +92,7 @@ export function TaskDetail({ task, events, draft }: { task: Task; events: AgentE
             title="공식 도구를 새 터미널 창에서 열어 직접 관리합니다"
             onClick={() => act(window.desk.openSession(task.agent!, task.worktree ?? task.repo, task.worktree ? task.sessionId : undefined))}
           >
-            직접 세션 열기
+            터미널에서 직접 열기
           </button>
         )}
         {task.status === 'running' && (
@@ -126,6 +131,16 @@ export function TaskDetail({ task, events, draft }: { task: Task; events: AgentE
                 <li key={f}>{f}</li>
               ))}
             </ul>
+          )}
+          {!!task.changedFiles?.length && task.branch && (
+            <details className="merge-guide">
+              <summary>원본 저장소에 반영하는 법</summary>
+              <p className="muted">
+                AI는 작업 폴더의 파일만 고치고 커밋하지 않습니다. [폴더 열기]로 확인한 뒤, 터미널에서 아래 세 줄을 차례로 실행하면 원본에 합쳐집니다. 그다음 [정리]를
+                누르세요.
+              </p>
+              <pre>{mergeCommands(task)}</pre>
+            </details>
           )}
           <div className="actions">
             <button onClick={() => act(window.desk.openFolder(task.id))}>폴더 열기</button>
